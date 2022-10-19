@@ -309,7 +309,7 @@ export class Loopar {
    }
 
    get current_user() {
-      return this.server.request.session.user ;
+      return this.server && this.server.request && this.server.request.user ? this.server.request.user : null;
    }
 
    async update_installer(_path, document, name, record, delete_record = false) {
