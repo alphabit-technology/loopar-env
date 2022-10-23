@@ -33,11 +33,7 @@ class FileManage {
 
       return new Promise((resolve, reject) => {
          mkdir(folder_path, {recursive: true}, (err) => {
-            if (err) {
-               reject(err);
-            } else {
-               resolve(true);
-            }
+            err ? reject(err) : resolve(true);
          });
       });
    }
@@ -123,7 +119,7 @@ export default class ${name}${_EXTENDS} {
    async exist_folder(folder_route) {
       return new Promise(resolve => {
          access(path.resolve(loopar.path_root + folder_route), (err) => {
-            resolve(!err);
+            return resolve(!err);
          });
       });
    }
