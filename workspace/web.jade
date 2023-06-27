@@ -1,0 +1,28 @@
+extends base/base-document
+
+block body
+    body.dark-skin(data-spy='scroll' data-offset='76')
+        include base/unsupported-browsers
+
+        script(src='#{client_importer}' type='module')
+        .app.app-site#app-root
+            script.
+               const workspace = "web";
+
+               Promise.all([
+               import((`/components/element-manage.js`)),
+               import((`/web-interface.js`)),
+               import('#{client_importer}')
+               ]).then(([element_manage, web_interface, app_imported]) => {
+               new element_manage.default().initialize().then(() => {
+               const domContainer = document.querySelector("#app-root");
+               const root = ReactDOM.createRoot(domContainer);
+               root.render(
+               React.createElement(web_interface.default, {data: {menu_data: JSON.parse(JSON.stringify(!{menu_data})), web_app:!{web_app}}}, [
+               React.createElement(app_imported.default, {data: !{content}})
+               ])
+               );
+               });
+               });
+    include base/footer-scripts
+    include base/css

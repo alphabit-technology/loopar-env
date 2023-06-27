@@ -1,0 +1,47 @@
+doctype html
+html(lang='en')
+    head
+        meta(charset='utf-8')
+        meta(name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no')
+
+        title Loopar Framework
+
+        meta(property='og:title' content='Loopar Framework')
+        meta(name='author' content='Loopar')
+        meta(property='og:locale' content='en_US')
+        meta(name='description' content='Loopar Framework')
+        meta(property='og:description' content='Loopar Framework')
+        meta(property='og:site_name' content='Loopar Framework')
+
+        block head
+        include header-links
+
+        script(type='application/ld+json').
+            {
+            "name": "Loopar Framework with Bootstrap 4",
+            "description": "Loopar Framework with Bootstrap 4",
+            "author": {
+              "@type": "alfredrz2012@gmail.com",
+              "name": "Alfredo Ramirez"
+            },
+            "@type": "Loopar",
+            "url": "www.loopar.io",
+            "headline": "Loopar Framework with Bootstrap 4",
+            "@context": "www.loopar.io"
+            }
+
+        script.
+            window.global = window;
+            window.toggle_skin = (toggle = true) => {
+                const skin = localStorage.getItem('skin') || 'dark';
+                const theme_style = toggle ? (skin === 'dark' ? '-dark' : '') : (skin === 'dark' ? '' : '-dark');
+
+                const style = document.getElementById("theme-style");
+                style.setAttribute("href", `/assets/plugins/bootstrap/css/theme${theme_style}.min.css`);
+                const theme = toggle ? (skin === 'dark' ? 'default' : 'dark') : skin;
+                window.theme = theme;
+                localStorage.setItem('skin', theme);
+            }
+
+            window.toggle_skin(false);
+    block body
