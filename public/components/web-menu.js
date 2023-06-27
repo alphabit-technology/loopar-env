@@ -1,5 +1,5 @@
 'use strict';
-import {a, li, span, button} from '/components/elements.js';
+import {span, button} from '/components/elements.js';
 import Div from '/components/elements/div.js';
 
 class WebMenuClass extends Div {

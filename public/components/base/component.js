@@ -2,7 +2,6 @@ import { div, a, i, span, style } from "/components/elements.js";
 import { HTML } from "/components/base/html.js";
 
 import {loopar} from "/loopar.js";
-import {element_manage} from "../element-manage.js";
 import {fileManager} from "../tools/file-manager.js";
 import {ErrorBoundary} from "../tools/error-boundary.js";
 
