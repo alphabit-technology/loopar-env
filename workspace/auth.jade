@@ -1,44 +1,9 @@
 extends base/base-document
 
-block body
-    body
-        include base/unsupported-browsers
-        main.auth.auth-floated
-            div.auth-form
-                .mb-4
-                    .mb-3
-                        img(src='/assets/images/logo.svg' alt='My Happy SVG' style='height: 28px;width:140px;')
-
-                    h1.h3  Initialize Loopar
-
-                div.wrapper(id="login-root", style="text-align: left;")
-                    script(src='#{client_importer}' type='module')
-                    script.
-                       const workspace = "auth";
-
-                       Promise.all([
-                       import((`/components/element-manage.js`)),
-                       import((`/auth-interface.js`)),
-                       import('#{client_importer}')
-                       ]).then(([element_manage, auth_interface, app_imported]) => {
-                       new element_manage.default().initialize().then(() => {
-                       const domContainer = document.querySelector("#login-root");
-                       const root = ReactDOM.createRoot(domContainer);
-                       root.render(
-                       React.createElement(auth_interface.default, {}, [
-                       React.createElement(app_imported.default, {data: !{content}})
-                       ])
-                       );
-                       });
-                       });
-                br
-                p.mb-0.px-3.text-muted.text-center
-                    | © 2022 All Rights Reserved. Loopar is dynamic and extensible JS Framework.
-                    a(href='#') Privacy
-                    |  and
-                    a(href='#') Terms
+block content
+    body.dark-skin
+        main.auth.auth-floated#app-root
+            script(src='/assets/particles/particles.js' sync='true' defer='true')
+            include base/importer
 
             include base/footer-scripts
-            include base/default-login-particles
-
-    include base/css

@@ -1,17 +1,15 @@
-import {HTML} from "/components/base/html.js";
+ import Component from "../base/component.js";
 
-export class Div extends HTML {
-   constructor(props, is_ready = true) {
+export default class Div extends Component {
+   tag_name = "div";
+   constructor(props) {
       super(props);
-
-      is_ready && this.make();
    }
 
-   make() {
-      super.tag("div");
+   render(content=null) {
+      return super.render([
+         this.props.children,
+         content
+      ]);
    }
-}
-
-export const div = (options) => {
-   return new Div(options)
 }

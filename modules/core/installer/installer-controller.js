@@ -1,4 +1,4 @@
-'use strict'
+/*'use strict'
 
 import Installer from "../../modules/core/installer/installer.js";
 import CoreController from "./core-controller.js";
@@ -6,9 +6,9 @@ import express from "express";
 import path from "path";
 
 export default class InstallerController extends CoreController {
-   layout = "installer";
+   workspace = "installer";
    default_action = 'install';
-   context = "installer";
+   //context = "installer";
    has_sidebar = false;
 
    constructor(props) {
@@ -56,4 +56,4 @@ export default class InstallerController extends CoreController {
          await this.render(response);
       }
    }
-}
+}*/

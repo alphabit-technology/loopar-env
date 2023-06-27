@@ -1,16 +1,11 @@
 'use strict'
 
 import Installer from "../../modules/core/installer/installer.js";
-import CoreController from "./core-controller.js";
+import BaseController from "./base-controller.js";
 import {loopar} from "../loopar.js";
 
 
-export default class InstallerController extends CoreController {
-   layout = "installer";
-   default_action = 'install';
-   context = "installer";
-   has_sidebar = false;
-
+export default class InstallerController extends BaseController {
    constructor(props) {
       super(props);
    }
@@ -26,8 +21,6 @@ export default class InstallerController extends CoreController {
          }
       } else {
          const response = await model.__data_connect__();
-
-         response.app = "form";
          await this.render(response);
       }
    }
@@ -42,23 +35,18 @@ export default class InstallerController extends CoreController {
             loopar.throw("App already installed please refresh page");
          }
 
-         if (await model.install()) {
+         const install = await model.install();
+         if (install) {
             await loopar.make_config();
-            if(model.app_name === "loopar") {
-               this.res.redirect('/desk');
-            }else{
-               await this.render({success: true, data: 'App installed successfully'});
-            }
+            return this.success("App installed successfully");
          }
       } else {
          const response = await model.__data_install__();
-
-         response.app = "form";
-         await this.render(response);
+         return await this.render(response);
       }
    }
 
-   async action_update() {
+   async action_reinstall() {
       const model = new Installer();
 
       if (this.has_data()) {
@@ -66,13 +54,21 @@ export default class InstallerController extends CoreController {
 
          if (await model.update()) {
             await loopar.make_config();
-            await this.render({success: true, data: 'App updated successfully'});
+            return this.success("App updated successfully");
          }
       } else {
          const response = await model.__data_install__();
-
-         response.app = "form";
          await this.render(response);
+      }
+   }
+
+   async action_pull(){
+      const model = new Installer();
+
+      Object.assign(model, {app_name: this.data.app_name});
+
+      if (await model.pull()) {
+         return await this.render({success: true, data: 'App updated successfully'});
       }
    }
 
@@ -106,12 +102,15 @@ export default class InstallerController extends CoreController {
          });
 
          for(const document of documents.rows) {
-            await loopar.delete_document("Document", document.name, false);
+            setTimeout(async () => {
+               await loopar.delete_document("Document", document.name, false);
+            }, 0);
+            //await loopar.delete_document("Document", document.name, false);
          }
       }
 
       await loopar.make_config();
 
-      return this.render({success: true, data: 'App uninstalled successfully'});
+      return this.success('App uninstalled successfully');
    }
 }

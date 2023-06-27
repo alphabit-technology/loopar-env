@@ -1,7 +1,8 @@
 import {ListGrid} from "/components/elements/form-table.js";
-import BaseDesk from "./base/base-desk.js";
+import BaseDocument from "./base/base-document.js";
+import {DeskGUI} from "./base/desk-gui.js";
 
-export default class ListContext extends BaseDesk {
+export default class ListContext extends BaseDocument {
    has_header = true;
    context = 'index';
    render_structure = false;
@@ -10,16 +11,22 @@ export default class ListContext extends BaseDesk {
       super(options);
    }
 
-   set_data(data) {
+   /*set_data(data) {
       super.set_data(data);
       this.grid.setState({data: {meta: data}});
-   }
+   }*/
 
-   render() {
-      const data = this.data;
-
+   render(content){
       return super.render([
-         ListGrid({data: {meta: data}, ref: (self) => this.grid = self})
+         DeskGUI({
+            meta: this.props.meta,
+            ref: gui => this.gui = gui,
+            has_sidebar: true,
+            has_header: this.has_header,
+            base: this
+         }, [
+            content || ListGrid({meta: this.props.meta, ref: (self) => this.grid = self})
+         ])
       ]);
    }
 }

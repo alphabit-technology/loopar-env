@@ -1,6 +1,6 @@
-import {Capitalize} from "/utils/helper.js";
+import {Capitalize} from "/tools/helper.js";
 import {loopar} from "/loopar.js";
-import {Breadcrumbs} from "/plugins/breadcrumbs.js";
+import {Breadcrumbs} from "/components/layout/breadcrumbs.js";
 import Div from "/components/elements/div.js";
 import {header, div, span, h6, h1, button} from "/components/elements.js";
 
@@ -13,7 +13,7 @@ class HeaderClass extends Div {
       return this.props.meta;
    }
 
-   get_title(){
+   getTitle(){
       const meta = this.meta;
       const context = ["create", "update"].includes(meta.action) ? "form" : meta.action;
 
@@ -21,14 +21,13 @@ class HeaderClass extends Div {
          (['list', 'view'].includes(context) || meta.action === 'create') ? meta.__DOCTYPE__.name : meta.__DOCUMENT__.name) || meta.__DOCTYPE__.name;
    }
 
-   get_context(){
+   getContext(){
       const meta = this.meta;
       return ["create", "update"].includes(meta.action) ? "form" : meta.action;
    }
 
-   primary_actions(){
+   primaryActions(){
       const meta = this.meta;
-      const context = this.get_context();
 
       return this.props.formRef ? [
          button({
@@ -53,7 +52,7 @@ class HeaderClass extends Div {
    }
    render(){
       const meta = this.meta;
-      const context = this.get_context();
+      const context = this.getContext();
 
       return header({
          className: "page-navs shadow-sm pr-3",
@@ -61,13 +60,13 @@ class HeaderClass extends Div {
       }, [
          div({className: "btn-account"}, [
             div({className: "account-summary"}, [
-               h1({className: "card-title"}, Capitalize(this.get_title())),
+               h1({className: "card-title"}, Capitalize(this.getTitle())),
                h6({className: "card-subtitle text-muted"}, [
                   Breadcrumbs({meta: this.meta})
                ])
             ]),
             div({className: "ml-auto", style: {position: "fixed", right: "10px"}}, [
-               ...this.primary_actions(),
+               ...this.primaryActions(),
                context === 'list' ? button({
                   className: "btn btn-success", tabindex: "0", type: "button",
                   onClick: () => {

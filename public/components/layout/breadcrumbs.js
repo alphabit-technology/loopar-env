@@ -1,4 +1,4 @@
-import {Capitalize} from "/utils/helper.js";
+import {Capitalize} from "/tools/helper.js";
 import {li, a, i} from "/components/elements.js";
 import {HTML} from "/components/base/html.js";
 

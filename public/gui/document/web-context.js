@@ -1,4 +1,5 @@
 import BaseDocument from "./base/base-document.js";
+import {Element} from "/components/elements.js";
 
 export default class View extends BaseDocument {
    constructor(props) {
@@ -7,7 +8,17 @@ export default class View extends BaseDocument {
 
    render(content=[]) {
       return super.render([
-         ...super.__CONTENT__(content)
+         ...this.meta.__DOCTYPE__.STRUCTURE.map(el => {
+            return Element(el.element,
+               {
+                  formRef: this,
+                  meta: {
+                     ...el,
+                  },
+               }
+            )
+         }),
+         content
       ]);
    }
 }

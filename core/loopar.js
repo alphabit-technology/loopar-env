@@ -1,13 +1,20 @@
+
 'use strict';
 
-import {access} from 'fs'
+import { access } from 'fs'
 import DataBase from '../database/database.js';
-import {GlobalEnvironment} from './global/element-definition.js';
-import {document_manage} from './document/document-manage.js';
+import { GlobalEnvironment } from './global/element-definition.js';
+import { document_manage } from './document/document-manage.js';
 import path from "path";
-import {file_manage} from "./file-manage.js";
+import { file_manage } from "./file-manage.js";
 import sha1 from "sha1";
 import * as Helpers from "./helper.js";
+import { simpleGit, CleanOptions } from 'simple-git';
+import elementGenerator from "./element-generator.js";
+import { Session } from "./session.js";
+import dayjs from "dayjs";
+
+simpleGit().clean(CleanOptions.FORCE);
 
 export class Loopar {
    installing = false;
@@ -15,8 +22,41 @@ export class Loopar {
    path_root = process.env.PWD;
    path_framework = process.argv[1];
    base_document_fields = ["id", "name", "type", "module", "doc_structure", "title_fields", "search_fields", "is_single", "is_static"];
+   session = new Session();
+   constructor() {
+      /*const options = {...CleanOptions, ...{
+            baseDir: path.join(this.path_root, "apps"),
+            binary: 'git',
+            maxConcurrentProcesses: 6,
+            trimmed: false,
+         }};
 
-   constructor() {}
+      this.git = simpleGit(options);*/
+   }
+
+   validateGitRepository(repository) {
+      if (!this.gitRepositoryIsValid(repository)) {
+         loopar.throw('Invalid GitHub URL ' + repository);
+      }
+   }
+
+   gitRepositoryIsValid(repository) {
+      const regex = new RegExp(/^(((https?\:\/\/)(((([a-zA-Z0-9][a-zA-Z0-9\-\_]{1,252})\.){1,8}[a-zA-Z]{2,63})\/))|((ssh\:\/\/)?git\@)(((([a-zA-Z0-9][a-zA-Z0-9\-\_]{1,252})\.){1,8}[a-zA-Z]{2,63})(\:)))([a-zA-Z0-9][a-zA-Z0-9\_\-]{1,36})(\/)([a-zA-Z0-9][a-zA-Z0-9\_\-]{1,36})((\.git)?)$/);
+      return regex.test(repository);
+   }
+
+   gitAppOptions(app) {
+      return {
+         baseDir: path.join(this.path_root, "apps", app),
+         binary: 'git',
+         maxConcurrentProcesses: 6,
+         trimmed: false,
+      }
+   }
+
+   git(app) {
+      return simpleGit(this.gitAppOptions(app));
+   }
 
    hash(value) {
       return sha1(value);
@@ -41,6 +81,7 @@ export class Loopar {
    }
 
    async make_config() {
+      await file_manage.make_file('public/js/components', 'elements', elementGenerator(), 'js', true);
       const write_file = async (data) => {
          await file_manage.set_config_file('loopar.config', data);
 
@@ -50,31 +91,31 @@ export class Loopar {
       const write_modules = async (data) => {
          this.db.pagination = null;
 
-         const group_list = await this.db.get_list('Module Group', ['name', 'description'], {'=': {in_sidebar: 1}});
+         const group_list = await this.db.get_list('Module Group', ['name', 'description'], { '=': { in_sidebar: 1 } });
 
          for (const g of group_list) {
-            const modules_group = {name: g.name, description: g.description, modules: []};
+            const modules_group = { name: g.name, description: g.description, modules: [] };
 
             const module_list = await this.db.get_list(
                'Module',
                ['name', 'icon', 'description', 'module_group'],
                {
-                  '=': {module_group: g.name},
+                  '=': { module_group: g.name },
                   'AND': {
-                     '=': {in_sidebar: 1},
+                     '=': { in_sidebar: 1 },
                   },
                }
             );
 
             for (const m of module_list) {
-               const module = {link: m.name, icon: m.icon, description: m.description, routes: []};
+               const module = { link: m.name, icon: m.icon, description: m.description, routes: [] };
 
                const route_list = await this.db.get_list("Document", ['name', 'is_single'], {
-                  '=': {module: m.name}
+                  '=': { module: m.name }
                });
 
                module.routes = route_list.map(route => {
-                  return {link: route.is_single ? 'update' : route.name, description: route.name}
+                  return { link: route.is_single ? 'update' : route.name, description: route.name }
                });
 
                modules_group.modules.push(module);
@@ -101,11 +142,11 @@ export class Loopar {
       if (data.framework_installed) {
          data.base_document_fields = this.#make_doctype_fields(
             JSON.parse(await this.db.get_value('Document', 'doc_structure', 'Document')) || []
-         ).filter(field => field.is_writeable).map(field => field.data.name);
+         ).filter(field => fieldIsWritable(field)).map(field => field.data.name);
 
          data.base_form_fields = this.#make_doctype_fields(
             JSON.parse(await this.db.get_value('Document', 'doc_structure', 'Form')) || []
-         ).filter(field => field.is_writeable).map(field => field.data.name);
+         ).filter(field => fieldIsWritable(field)).map(field => field.data.name);
 
          await write_modules(data);
       } else {
@@ -113,10 +154,10 @@ export class Loopar {
       }
    }
 
-   async #write_default_settings(){
+   async #write_default_settings() {
       await file_manage.make_folder('', "config");
 
-      if(!file_manage.exist_file_sync(path.join('config', 'db.config.json'))) {
+      if (!file_manage.exist_file_sync(path.join('config', 'db.config.json'))) {
          await file_manage.set_config_file('db.config', {
             "host": "localhost",
             "user": "root",
@@ -133,11 +174,11 @@ export class Loopar {
          });
       }
 
-      if(!file_manage.exist_file_sync(path.join('config', 'loopar.config.json'))) {
+      if (!file_manage.exist_file_sync(path.join('config', 'loopar.config.json'))) {
          await file_manage.set_config_file('loopar.config', {});
       }
 
-      if(!file_manage.exist_file_sync(path.join('config', 'server.config.json'))) {
+      if (!file_manage.exist_file_sync(path.join('config', 'server.config.json'))) {
          await file_manage.set_config_file('server.config', {
             "port": 3030,
             "session": {
@@ -156,6 +197,7 @@ export class Loopar {
       global.AJAX = 'POST';
       global.current_controller = null;
       global.env = {};
+      global.dayjs = dayjs;
       await this.#write_default_settings();
 
       env.db_config = file_manage.get_config_file('db.config');
@@ -182,14 +224,15 @@ export class Loopar {
       }, []);
    }
 
-   async #GET_DOCTYPE(document, type = 'Document', field_doc_structure, by_file=null) {
+   async #GET_DOCTYPE(document, type = 'Document', field_doc_structure, by_file = null) {
       const fields = type === 'Document' ? this.base_document_fields : this.base_form_fields;
       let doctype;
 
-      if(by_file) {
+
+      if (by_file) {
          const doc = document.replaceAll(/\s+/g, '-').toLowerCase();
          doctype = file_manage.get_config_file(doc, path.join("apps", by_file, doc));
-      }else{
+      } else {
          doctype = await loopar.db.get_doc(type, document, [field_doc_structure, ...fields]);
       }
 
@@ -203,19 +246,19 @@ export class Loopar {
       return doctype;
    }
 
-   async get_document(document, document_name, data = null, by_file=null) {
+   async get_document(document, document_name, data = null, by_file = null) {
       const DOCTYPE = await this.#GET_DOCTYPE(document, 'Document', 'doc_structure', by_file);
 
-      if(DOCTYPE && by_file) {
+      if (DOCTYPE && by_file) {
          DOCTYPE.app_name = by_file.split('/')[0];
       }
 
       return await document_manage.get_document(DOCTYPE, document_name, data);
    }
 
-   async new_document(document, data = {}, document_name = null, by_file=null) {
+   async new_document(document, data = {}, document_name = null, by_file = null) {
       const DOCTYPE = await this.#GET_DOCTYPE(document, 'Document', 'doc_structure', by_file);
-      if(DOCTYPE && by_file) {
+      if (DOCTYPE && by_file) {
          DOCTYPE.app_name = by_file.split('/')[0];
       }
 
@@ -225,7 +268,7 @@ export class Loopar {
    async delete_document(document, document_name, update_installer = true) {
       const doc = await this.get_document(document, document_name);
 
-      doc.delete({update_installer});
+      doc.delete({ update_installer });
    }
 
    async get_form(form_name, data = {}) {
@@ -248,10 +291,10 @@ export class Loopar {
       });
    }
 
-   async get_list(document, {fields = null, filters = {}, order_by = 'name', limit = 10, offset = 0} = {}) {
+   async get_list(document, { fields = null, filters = {}, order_by = 'name', limit = 10, offset = 0, q = null } = {}) {
       const doc = await this.new_document(document);
 
-      return await doc.get_list({fields, filters, order_by, limit, offset, page: current_controller.page});
+      return await doc.get_list({ fields, filters, order_by, limit, offset, page: this.session.get(document + "_page") || 1, q });
    }
 
    json_parse(json) {
@@ -295,36 +338,41 @@ export class Loopar {
          current_controller.error = error;
       }
 
-      console.log(['throw', error]);
       throw new Error(error.message);
    }
 
    async get_user(user_id) {
       const user = await this.db.get_list('User',
-         ['name', 'email', 'password', 'disabled'],
-         {'=': {name: user_id}, "OR": {'=': {email: user_id}}}
+         ['name', 'email', 'password', 'disabled', 'profile_picture'],
+         { '=': { name: user_id }, "OR": { '=': { email: user_id } } }
       );
 
       return user.length > 0 ? user[0] : null;
    }
 
    get session() {
-      return this.server && this.server.request && this.server.request.session ? this.server.request.session : {};
+      return this.server && this.server.req && this.server.req.session ? this.server.req.session : {};
+   }
+
+   isLoggedIn() {
+      return this.current_user;
    }
 
    get current_user() {
-      return this.session.user || null;
+      //return { name: "Administrator", email: "test@mail.common" }
+      return this.session.get('user') || null;
+      //return this.session.user || null;
    }
 
    async update_installer(_path, document, name, record, delete_record = false) {
-      if(this.installing) return;
+      if (this.installing) return;
 
       const installer_data = file_manage.get_config_file('installer', _path) || {};
 
       if (installer_data) {
          if (delete_record) {
-             delete installer_data[document][name];
-         }else {
+            delete installer_data[document][name];
+         } else {
             installer_data[document] = installer_data[document] || {};
 
             installer_data[document][name] = record;
@@ -339,9 +387,9 @@ export class Loopar {
    }
 
    async get_app(app_name) {
-      if(await this.app_status(app_name) === 'installed') {
+      if (await this.app_status(app_name) === 'installed') {
          return await loopar.db.get_doc('App', app_name);
-      }else{
+      } else {
          return null;
       }
    }

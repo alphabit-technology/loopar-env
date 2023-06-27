@@ -1,29 +1,50 @@
-import {BaseDesk} from "/apps/base-desk.js";
+import {Element, div} from "/components/elements.js";
+import BaseForm from "./base/base-form.js";
 
-export default class InstallerContext extends BaseDesk {
-   is_desk_app = false;
-   context = 'form';
 
+export default class InstallerContext extends BaseForm {
    constructor(options) {
       super(options);
-
-      this.make();
    }
 
-   make(){
+   render(content=[]) {
+      return super.render([
+         ...this.props.meta.__DOCTYPE__.STRUCTURE.map(el => {
+            return Element(el.element,
+               {
+                  formRef: this,
+                  meta: {
+                     ...el,
+                  },
+                  //...(el.data.action ? {onClick: () => this.send({action: el.data.action})} : {}),
+               }
+            )
+         })
+      ]);
+   }
+
+   /*render(content=[]) {
+      return super.render([
+         ...super.__CONTENT__(content)
+      ]);
+   }*/
+
+   /*make(){
       super.make();
       this.render();
    }
 
    render() {
       super.render();
-   }
+   }*/
 
    async install() {
-      await this.send("install");
+      console.log("install");
+      await this.send({action: "install"});
    }
 
    async connect() {
-      await this.send("connect");
+      console.log("connect");
+      await this.send({action: "connect"});
    }
 }

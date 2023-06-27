@@ -1,29 +1,28 @@
-import {Div} from "/components/elements/div.js";
+import {div} from "../elements.js";
+import Component from "../base/component.js";
 
-export class Row extends Div {
+export default class Row extends Component {
+   block_component = true;
+   className = "row";
    constructor(props) {
-      super(props, false);
-
-      this.make();
+      super(props);
    }
 
-   make() {
-      super.make();
-
-      this.add_class("card-body card-body-row border-top");
-
-      this.body = new Div({wrapper: this, props: {class: 'row'}});
-
-      this.container = this.body;
-
-      this.set_default_class();
+   render(content) {
+      return super.render([
+         this.props.children,
+         content,
+         this.elements
+      ]);
    }
 
-   set_default_class() {
-      this.designer && this.body.add_class("sub-element element");
-   }
-}
+   componentDidMount() {
+      super.componentDidMount();
 
-export const row = (options) => {
-   return new Row(options);
+      /*if(this.options.designer){
+         this.container.droppable_actions();
+      }else{
+         //this.addClass("position-relative pb-5 bg-light");
+      }*/
+   }
 }

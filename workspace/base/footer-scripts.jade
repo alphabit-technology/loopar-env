@@ -1,16 +1,7 @@
-script(src='/assets/plugins/bootstrap/js/jquery.min.js')
-script(src='/assets/plugins/bootstrap/js/popper.min.js')
-script(src='/assets/plugins/bootstrap/js/bootstrap.min.js')
-
-script(src='/assets/plugins/bootstrap/js/pace.min.js')
-//script(src='/assets/plugins/bootstrap/js/stacked-menu.min.js')
-//script(src='/assets/plugins/bootstrap/js/perfect-scrollbar.min.js')
-
-script(src='/assets/plugins/bootstrap/js/theme.min.js')
-
-script(type='text/javascript' src='https://unpkg.com/flatted@3.2.5/min.js')
-script(type='text/javascript' src='/utils/humanize.min.js')
 script(type='text/javascript' src='/assets/plugins/quill/quill.min.js')
+script(type='text/javascript' src='https://unpkg.com/flatted@3.2.5/min.js')
+script(type='text/javascript' src='/tools/humanize.min.js')
+script(type='text/javascript' src="/assets/plugins/aos/js/aos.js")
 
 block footer-scripts
 
@@ -29,3 +20,23 @@ script.
 
       last_y = e.clientY;
    });
+
+
+   implement = (target, source) => {
+      if(!source.prototype.ref_class) {
+         Object.defineProperties(source.prototype, {
+            ref_class: {
+               get: function () {
+                  return target;
+               }
+            }
+         })
+      }
+
+      for (let key of Reflect.ownKeys(source.prototype)) {
+         if (key !== "constructor" && key !== "prototype" && key !== "name") {
+            let desc = Object.getOwnPropertyDescriptor(source.prototype, key);
+            Object.defineProperty(target.prototype, key, desc);
+         }
+      }
+   }

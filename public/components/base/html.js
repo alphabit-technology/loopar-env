@@ -1,217 +1,573 @@
-import {BaseHtml} from "/components/base/base-html.js";
-import {elements} from "/components/elements.js";
-import {object_manage} from "/utils/object-manage.js";
-import {value_is_true} from "/utils/helper.js";
-import {loopar} from "/loopar.js";
-import {data_interface} from "/element-definition.js";
-import {element_title} from "./element-title.js";
+import { loopar } from "/loopar.js";
+import { DragAndDropUtils } from "/tools/drag-and-drop.js";
+import { styleToObject } from "/components/element-manage.js";
+import { Element } from "/components/elements.js";
+import {element_manage} from "../element-manage.js";
 
-export class HTML extends BaseHtml {
-   last_class = "";
-   constructor(options) {
-      super(options);
-      if (this.has_title) element_title(this);
+export class HTML extends React.Component {
+   states = [];
+   elements_list = [];
+
+   get $state() {
+      return (this.states.length > 0 ? this.states[this.states.length - 1] : this.state) || {};
    }
 
-   field_data() {
-      const data = [];
+   constructor(props) {
+      super(props);
 
-      object_manage.in_object(this.elements, el => {
-         if (el.element) {
-            data.push({
-               element: el.element,
-               is_writeable: el.is_writeable || false,
-               elements: el.field_data ? el.field_data() : [],
-               content: typeof el.content === "string" ? el.content : "",
-               data: el.data || {},
-            });
-         }
-      });
-
-      return data;
+      this.state = {
+         ...this.state,
+         attrs: {}
+      };
    }
 
-   field_values() {
-      const data = {};
+   merge_attributes(target, ...sources) {
+      function isObject(item) {
+         return (item && typeof item === 'object' && !Array.isArray(item));
+      }
 
-      object_manage.in_object(this.child_elements(), el => {
-         if (el.element && el.element !== TABLE) data[el.data.name] = el.val();
-      });
+      function mergeDeep(target, ...sources) {
+         if (!sources.length) return target;
+         const source = sources.shift();
 
-      return data;
-   }
-
-   child_elements() {
-      const elements = {};
-
-      object_manage.in_object(this.elements, el => {
-         if (el.data.name !== 'doc_designer') {
-            if (el.is_writeable) {
-               elements[el.identifier] = el;
+         if (isObject(target) && isObject(source)) {
+            for (const key in source) {
+               if (isObject(source[key])) {
+                  if (!target[key]) {
+                     Object.assign(target, { [key]: {} });
+                  } else {
+                     target[key] = Object.assign({}, target[key])
+                  }
+                  mergeDeep(target[key], source[key]);
+               } else {
+                  Object.assign(target, { [key]: source[key] });
+               }
             }
-            if (el.element !== TABLE) Object.assign(elements, el.child_elements());
+         }
+
+         return mergeDeep(target, ...sources);
+      }
+
+      return mergeDeep(target, ...sources);
+   }
+
+   tagDontHaveChild(tag) {
+      /**List Elements that don't have children */
+      const single_tags = "input,textarea,img,switch,checkbox,hr,br,checkbox,script,link,meta,base,area,basefont,frame,embed,source,track,wbr,image".split(",");
+
+      return single_tags.includes(tag);
+   }
+
+   render(content = null) {
+      const props = Object.assign({}, this.props);
+      const meta = props.meta || {};
+      const data = meta.data || {};
+      const children = content || this.props.children || [];
+
+      if (props.href) {
+         if (props.onClick) {
+            props.href = 'javascript:void(0);';
+         } else {
+            if (props.href.includes("http")) {
+               props.target = "_blank";
+            } else if (props.href.includes("#") || props.href.includes("javascript:")) {
+               props.target = "_self";
+            } else if (!props.redirect) {
+               props.navigate = props.href;
+               if (!props.navigate.includes("javascript:void(0)")) {
+                  props.onClick = () => loopar.navigate(props.navigate);
+               }
+               props.href = 'javascript:void(0);';
+            }
+         }
+      }
+
+      const tag = this.tag_name || this.props.tag_name || "div";
+      const className = this.getClassName;
+      if (className && className.length > 0) props.className = className;
+      const animations = {}
+      if(data.animation && !props.designer){
+         animations["data-aos"] = data.animation;
+
+         if(data.animation_delay){
+            animations["data-aos-delay"] =  data.animation_delay;
+         }
+
+         if(data.animation_duration && data.animation_duration > 0){
+            animations["data-aos-duration"] = data.animation_duration;
+         }else{
+            animations["data-aos-duration"] =  2000;
+         }
+      }
+      
+      const action = props?.meta?.data?.action;
+
+      const component = [
+         (tag === "image" ? "img" : tag),
+         {
+            ...Object.keys(props).reduce((acc, key) => {
+               if (key !== "style" && !["object"].includes(typeof props[key]) && !["element", "tag_name", "key"].includes(key)) {
+                  acc[key] = props[key];
+               }
+               return acc;
+            }, {}),
+            ...{ style: this.getStyle },
+            ...this.state.attrs,
+            ...((action && typeof props.formRef[action] == "function" ) ? { onClick: () => props.formRef[action]()} : {}),
+            ...animations
+         }
+      ]
+
+      if (!this.tagDontHaveChild(tag)) {
+         component.push(children);
+         !this.block_component && component.push(
+            this.elements
+         );
+      }
+
+      return React.createElement(...component);
+   }
+
+   get getStyle() {
+      const selfStyle = this.style || {};
+      const dataStyle = styleToObject(this.data.style) || {};
+
+      return {...selfStyle, ...dataStyle, ...this.props.style || {}};
+   }
+
+   make() {
+      if (this.props.Component) {
+         this.Component = this.props.Component;
+      }
+   }
+
+   get identifier() {
+      return this.meta.identifier || this.data.name;
+   }
+
+   get elements() {
+      return (this.meta?.elements || []).map(el => {
+         return this.makeElement(el);
+      });
+   }
+
+   makeElement(el, props = {}) {
+      return Element(el.element, {...{
+         ...(el.element === "tabs" ? {key: element_manage.getUniqueKey()} : {}),
+         ...(this.props.formRef ? { formRef: this.props.formRef } : {}),
+         ...(this.props.designerRef ? { designerRef: this.props.designerRef } : {}),
+         ...(this.props.designer && {
+            has_title: true, draggable: true, designer: true
+         } || {}),
+         ref: self => {
+            if (self) {
+               /*For inputs and other elements that have a name and have */
+               if (this.props.formRef && el.data.name && !this.props.designer) {
+                  if (self.is_writable){
+                     /*For inputs elements*/
+                     this.props.formRef.form_fields[el.data.name] = self;
+                  }else{
+                     /*For other elements*/
+                     this.props.formRef[el.data.name] = self;
+                  }
+               }
+
+               if (this.props.designer) {
+                  self.parentComponent = this;
+               }
+            }
+         },
+         meta: {
+            ...el
+         },
+      }, ...props})
+   }
+
+   add_child(child, merge = false) {
+      this.setState({ children: child }, merge);
+   }
+
+   text(text) {
+      this.setState({ children: text }, false);
+   }
+
+   on(event, callback) {
+      this.setAttrs({ ["on" + event]: () => { callback() } });
+   }
+
+   show() {
+      this.removeClass("no-display");
+   }
+
+   hide() {
+      this.addClass("no-display");
+   }
+
+   get element() {
+      return this.meta.element || this.props.element;
+   }
+
+   get getClassName() {
+      const props = this.props;
+      const selfClassName = this.className || '';
+      const propsClassName = this.props.className || '';
+      const stateClassName = (this.$state || {}).className || '';
+      const dataClassName = ((this.props.meta?.data || {}).class || null);
+      this.lastSettedClass ??= (dataClassName || "");
+
+      const classes = `${selfClassName} ${stateClassName} ${propsClassName}`.split(' ');
+
+      /*if(props.meta && props.meta.data && props.meta.data.aos && !props.designer){
+         classes.push("aos-init os-animate");
+      }*/
+
+      return Array.from(
+         new Set(
+            classes.filter(c => c && c.length > 0 && !this.lastSettedClass.split(" ").includes(c) && ["undefined", "null"].indexOf(c) === -1)
+         )
+      ).join(' ') + (dataClassName ? " " + dataClassName : "");
+   }
+
+   has_class(className) {
+      return this.getClassName.includes(className);
+   }
+
+   toggle_class(class_name) {
+      if (this.getClassName.includes(class_name)) {
+         this.removeClass(class_name);
+      } else {
+         this.addClass(class_name);
+      }
+      return this;
+   }
+
+   replace_class(class_name, new_class_name) {
+      const new_class = this.getClassName.replace(class_name, new_class_name);
+      this.setState({ className: new_class });
+      return this;
+   }
+
+   attr(name, value) {
+      if (value === undefined) {
+         return this.props[name] || this.$state.attrs[name];
+      } else {
+         setTimeout(() => {
+            this.setAttrs({ [name]: value });
+         }, 0);
+      }
+   }
+
+   setState(state, callback, merge = false) {
+      const last_state = this.state || {};
+      const new_state = merge ? this.merge_attributes(last_state, state) : state;
+
+      super.setState(new_state, typeof callback === "function" ? callback : undefined);
+   }
+
+   setAttrs(attr, value) {
+      const current_attrs = this.state.attrs || {};
+
+      if (typeof attr === "object") {
+         this.setState({ attrs: { ...current_attrs, ...attr } }, null, true);
+      } else {
+         this.setState({ attrs: { ...current_attrs, [attr]: value } }, null, true);
+      }
+   }
+
+   hasClass(class_name) {
+      return this.getClassName.includes(class_name);
+   }
+   addClass(class_name) {
+      if (this.hasClass(class_name)) return this;
+      const where_is_class = (this.state || {}).className ? "state" : "props";
+
+      const current_class = (this.getClassName + " " + class_name).split(" ").filter(c => c !== "" && c.length > 0)//.join(" ");
+      const class_name_list = Array.from(new Set(current_class)).join(" ");
+
+      if (where_is_class === "props") {
+         this.className = class_name_list;
+         this.setState({});
+      } else {
+         this.setState({ className: class_name_list });
+      }
+
+      return this;
+   }
+
+   removeClass(class_name) {
+      if (!this.hasClass(class_name)) return this;
+      const current_class = this.getClassName.split(" ");
+      const where_is_class = (this.$state || {}).className ? "state" : "props";
+
+      class_name.split(" ").map(c => {
+         const index = current_class.indexOf(c);
+         index > -1 && current_class.splice(index, 1);
+      });
+
+      if (where_is_class === "props") {
+         this.className = current_class.join(" ");
+         this.setState({});
+      } else {
+         this.setState({ className: current_class.join(" ") });
+      }
+
+      return this;
+   }
+
+   innerHtml(content) {
+      return {
+         dangerouslySetInnerHTML: { __html: content }
+      }
+   }
+
+   componentDidUpdate(prevProps, prevState, snapshot) {
+      this.onUpdate && this.onUpdate(prevProps, prevState, snapshot);
+   }
+
+   componentDidMount() {
+      this.make();
+      this.onMake && this.onMake();
+      this.onUpdate && this.onUpdate();
+      this.onMount && this.onMount();
+   }
+
+   componentWillUnmount() {
+      this.onRemove && this.onRemove();
+   }
+
+   get meta() {
+      const meta = this.state.meta || this.props.meta || {};
+      return meta || {};
+   }
+
+   get data() {
+      const data = this.meta.data || this.state.data;
+      return data || {};
+   }
+
+   get node() {
+      return this._reactInternals.child.stateNode;
+   }
+
+   css(prop, value = null) {
+      if (typeof prop === "object") {
+         this.setState({ style: prop });
+      } else {
+         const css = this.state.style || {};
+         css[prop] = value;
+         this.setState({ style: css });
+      }
+      return this;
+   }
+
+   onUpdate() { }
+
+   draggable_actions() {
+      this.over_animations();
+
+      this.setAttrs({
+         draggable: true,
+         onDragStart: (event) => {
+            event.stopPropagation();
+
+            this.addClass("on-drag");
+
+            DragAndDropUtils.elementToDrag = this;
+         },
+         onDragEnter: (event) => {
+            event.stopPropagation();
+
+            this.apply_event_drag_end();
          }
       });
 
+      (this.container || this).setAttrs({
+         onDragEnd: (event) => {
+            event.stopPropagation();
+            event.stopPropagation();
+
+            this.removeClass("on-drag");
+         },
+         /*onDragLeave: (event) => {
+            event.stopPropagation();
+
+            this.apply_event_drag_end();
+         }*/
+      });
+
+      return this;
+   }
+
+   droppable_actions() {
+      this.over_animations();
+      this.setAttrs({
+         droppable: true,
+         onDrop: e => {
+            e.stopPropagation();
+            this.drop(e);
+            (this.container || this).removeClass("over-drag");
+         },
+         onDragOver: e => {
+            e.preventDefault();
+            e.stopPropagation();
+            (this.container || this).addClass("over-drag");
+         },
+         onDragLeave: e => {
+            e.preventDefault();
+            (this.container || this).removeClass("over-drag");
+         },
+         /*All droppable elements can receive before or after other elements*/
+         onDragEnter: e => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.apply_event_drag_end();
+         }
+      });
+   }
+
+   apply_event_drag_end() {
+      if (DragAndDropUtils.lastElementTargetSibling) {
+         if (DragAndDropUtils.currentElementTargetSibling.identifier !== this.identifier) {
+
+            DragAndDropUtils.lastElementTargetSibling = DragAndDropUtils.currentElementTargetSibling;
+         }
+      } else {
+         DragAndDropUtils.lastElementTargetSibling = this;
+      }
+
+      DragAndDropUtils.currentElementTargetSibling = this;
+   }
+
+   drop(event) {
+      event.preventDefault();
+      const container = this.container || this;
+      const self = this.Component || this;
+      const { elementToCreate, elementToDrag, lastElementTargetSibling } = DragAndDropUtils;
+      let elements = self.elements_dict;
+      let new_elements = null;
+
+      container.removeClass("over-drag");
+
+      if (elementToCreate) {
+         if (elementToCreate.element) {
+            elements.push(elementToCreate);
+            new_elements = this.sort_elements(elements, elementToCreate, lastElementTargetSibling, "create");
+         }
+      } else if (elementToDrag && elementToDrag !== self) {
+         if (!elementToDrag.isParentOf(this)) {
+            const element = Object.assign({}, elementToDrag.meta);
+
+            if (elementToDrag.parentComponent !== self) {
+               elements = elements.filter(e => {
+                  return e.data.name !== elementToDrag.meta.data.name;
+               });
+               elements.push(element);
+            }
+
+            new_elements = this.sort_elements(elements, element, lastElementTargetSibling);
+         }
+      }
+
+      new_elements && loopar.Designer.updateElements(self, new_elements, elementToDrag);
+
+      DragAndDropUtils.elementToCreate = null;
+      DragAndDropUtils.elementToDrag = null;
+      DragAndDropUtils.lastElementTargetSibling = null;
+   }
+
+   sort_elements(elements, moved_element, target_element, type, direction = vertical_direction) {
+      /**before moving the element, we need to check if the target element is in the elements array*/
+      const target_in_elements = elements.some(element => {
+         return element.data.name === target_element.data.name;
+      });
+
+      if (target_in_elements && target_element.data.name !== moved_element.data.name) {
+         elements = elements.filter(element => {
+            return element.data.name !== moved_element.data.name;
+         });
+      }
+
+      /**if the target element is in the elements array, we need to move the element to the target element position*/
+      if (moved_element && target_element && target_element.data.name !== moved_element.data.name && target_in_elements) {
+         return elements.reduce((acc, element) => {
+            const data = element.data;
+
+            /**if the element is the target element, we need to add the moved element before or after the target element*/
+            if (data.name === target_element.data.name) {
+               acc = direction === UP ? [...acc, moved_element, element] : [...acc, element, moved_element];
+            } else if (data.name !== moved_element.data.name) {
+               acc = [...acc, element];
+            }
+
+            return acc;
+         }, []);
+      }
+
+      /**if the target element is not in the elements array, we need to move the element to the last position*/
       return elements;
    }
 
-   label(options) {
-      return this.tag("label", options);
+   isParentOf(element) {
+      if (!element) return false;
+      if (element.parentComponent === this) return true;
+      return this.isParentOf(element.parentComponent);
    }
 
-   tag(tag_name) {
-      this.tag_name = tag_name;
-      this.render();
-
-      return this;
+   get app() {
+      return (this.parent_component || this).options.app;
    }
 
-   render() {
-      super.render();
+   set_elements(elements) {
+      const meta = this.meta;
+      meta.elements = elements;
+      this.setState({ meta });
    }
 
-   get focus_actions() {
-      this.on("mouseover", (obj) => {
-         obj.toggle_common('element', 'hover');
-      }).on("mouseout", (obj) => {
-         obj.remove_class('hover');
-      });
+   add_element(element = null) {
+      if (!element) return;
 
-      return this;
+      this.set_elements([...this.elements_dict, element], element);
    }
 
-   make_element(props) {
-      return elements(object_manage.assign(props, this));
+   /**Parent component is the component that contains the current element, only for Block Elements ej: Card*/
+   get parent_component() {
+      return this.options.component;
    }
 
-   set_data(data) {
-      this.last_class = clone(this.data.class);
-      //this.data = {};
-
-      object_manage.in_object(data, (obj, field) => {
-         const val = obj.val();
-
-         if (typeof val != "undefined") {
-            if ( this.element === BUTTON) {
-               if (field === "type") this.set_type(val);
-               if (field === "size") this.set_size(val);
-            }
-
-            if ( this.group_element === INPUT && this.set_size) {
-               if (field === "size") this.set_size(val);
-            }
-
-            this.data[field] = val;
-
-            if (field === 'label') {
-               if (this.label && this.label.val) this.label.val(val, {event_change: false});
-
-               if (this.element === CARD) {
-                  this.title.val(val, {event_change: false});
-               }
-            }
-
-            if (field === 'name') {
-               if (this.label && this.label.prop) this.label.prop("for", val);
-               if (this.input && this.input.prop) this.input.prop({
-                  name: val,
-                  id: val
-               });
-            }
-
-            if (field === 'default_value') {
-               //this.val(val, false);
-            }
-
-            if (obj.data.name === "format" && this.element === "input") {
-               this.input.val("", {event_change: false});
-               this.filter_value();
-            }
-         }
-      });
-
-      this.apply_properties();
-   }
-
-   apply_properties() {
-      const data = clone(this.data);
-      let classes = this.props.class || "";
-      let styles = this.props.style || "";
-
-      if (data) {
-         if (!this.designer && value_is_true(data.hidden)) this.hide();
-         //if (this.designer && value_is_true(data.droppable)) this.droppable().droppable_actions();
-         //if (this.designer && value_is_true(data.draggable)) this.draggable().draggable_actions();
-
-         if (data.class) classes += " " + data.class;
-         if (data.style) styles += " " + data.style;
-
-         if (data.action && data.action.split("/").length > 1) {
-            this.on('click', (obj, event) => {
-               event.preventDefault();
-               loopar.route = data.action;
-            });
-         }
-
-         if (data.size) {
-            if ( this.group_element === INPUT && this.set_size) {
-               this.set_size(data.size);
-            }
-            /*if ([INPUT, DATE, DATE_TIME].includes(this.element)) {
-               this.set_size(data.size);
-               //this.input.reset_classes().add_class("form-control-" + data.size);
-            }
-            if ([SELECT].includes(this.element)) {
-               //this.input_search.reset_classes().add_class("form-control-" + data.size);
-            }*/
-         }
-
-         setTimeout(() => {
-            if (!this.designer && data.set_only_time && this.val().length > 0) {
-               this.disable();
-            }
-         }, 0);
-      }
-
-      if (classes.length > 0) this.reset_classes().add_class(classes);
-      //if (styles.length > 0) this.reset_styles().css(styles);
-   }
-
-   #is_valid_value(value) {
-      if (["Int", "Long Int"].includes(this.data.format)) {
-         return /^-?\d*[]?\d*$/.test(value);
-      }
-      if (["Currency", "Float", "Percent"].includes(this.data.format)) {
-         return /^-?\d*[.,]?\d*$/.test(value);
-      }
-
-      if ([DATE].includes(this.element)) {
-         return /^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/.test(value);
-      }
-
-      return true;
-   }
-
-   filter_value() {
-      const self = this;
-      ["input", "keydown", "keyup", "mousedown", "mouseup", "select", "contextmenu", "drop"].forEach((event) => {
-         this.input.obj.addEventListener(event, function () {
-            if (self.#is_valid_value(this.value)) {
-               this.oldValue = this.value;
-               this.oldSelectionStart = this.selectionStart;
-               this.oldSelectionEnd = this.selectionEnd;
-            } else if (this.hasOwnProperty("oldValue")) {
-               this.value = this.oldValue;
-               this.setSelectionRange(this.oldSelectionStart, this.oldSelectionEnd);
-            } else {
-               this.value = "";
+   /**Parent element is the element that contains the current element for all Elements*/
+   remove() {
+      if (this.parent_element) {
+         const current_elements = this.parent_element.elements_dict;
+         current_elements.findIndex((element) => {
+            if (element.data.name === this.data.name) {
+               current_elements.splice(current_elements.indexOf(element), 1);
+               return true;
             }
          });
-      });
+
+         this.parent_element.set_elements(current_elements);
+      }
+
+      setTimeout(() => {
+         //trigger && this.onRemove && this.onRemove();
+         loopar.document_form && loopar.document_form.make_doc_structure();
+      }, 0);
    }
 
-   validate() {
-      return data_interface(this).validate();
+   get elements_dict() {
+      return this.meta.elements || [];
+   }
+
+   over_animations() {
+      this.setAttrs({
+         onMouseOver: e => {
+            this.addClass("hover");
+         },
+         onMouseOut: e => {
+            this.removeClass("hover");
+         }
+      });
+
+      return this;
    }
 }

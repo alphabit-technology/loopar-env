@@ -4,11 +4,11 @@ import {decamelize, lowercase} from './helper.js';
 import fs, {access, mkdir} from 'fs'
 
 class FileManage {
-   async make_file(destiny, name, content, ext = 'js') {
+   async make_file(destiny, name, content, ext = 'js', replace=false) {
       const file_path = this.join(loopar.path_root, destiny, this.file_name(name, ext));
 
       return new Promise((resolve, reject) => {
-         fs.existsSync(file_path) && ext === 'js' ? resolve(true) : fs.writeFile(file_path, content, (err) => {
+         fs.existsSync(file_path) && ext === 'js' && !replace ? resolve(true) : fs.writeFile(file_path, content, (err) => {
             if (err) {
                console.log(['make_file err', err]);
                reject(err);
@@ -87,7 +87,7 @@ export default class ${name}${_EXTENDS} {
    }
 
    get_config_file(file_name, _path=null, if_error = "throw") {
-      const path_file = `./${_path || `config`}/${file_name}.json`;
+      const path_file = this.file_name((`./${_path || `config`}/${file_name}`), 'json');
 
       try {
          return JSON.parse(fs.readFileSync(path.resolve(loopar.path_root, path_file), 'utf8') || {});
@@ -98,6 +98,10 @@ export default class ${name}${_EXTENDS} {
             return if_error;
          }
       }
+   }
+
+   get_app_data(app_name){
+      return this.get_config_file("installer", path.join('apps', app_name), null);
    }
 
    async set_config_file(file_name, data, path = null) {

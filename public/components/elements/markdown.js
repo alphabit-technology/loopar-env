@@ -1,59 +1,47 @@
-import {elements} from "/components/elements.js";
-import {BaseInput} from "/components/base/base-input.js";
+import { BaseInput } from "/components/base/base-input.js";
+import { loopar } from "/loopar.js";
 
-export class Markdown extends BaseInput {
-   _editor = null;
-   tag_name = "textarea";
+export default class Markdown extends BaseInput {
+   is_writable = false;
 
    constructor(props = {}) {
       super(props);
-
-      this.make();
    }
 
-   make() {
-      super.make();
+   render() {
+      const data = this.props.meta.data;
+      return super.render([
+         !this.props.designer ? React.createElement("div", this.innerHtml(marked.parse(data.value || ""))) : null
+      ]);
+   }
 
-      if (!this.designer) {
-         this.input.hide();
-         this._editor = elements({
-            wrapper: this
-         }).tag('div');
-      }else{
-         this._editor = this.input;
-      }
+   componentDidMount() {
+      super.componentDidMount();
+      const data = this.props.meta.data;
+      //this.label.removeClass('d-block');
+      this.label.addClass('d-none');
+      this.input.addClass('d-none');
 
-      if (this.designer) {
+      this.css({ 'display': 'block' });
+
+      if (this.props.designer) {
          this.editor = new SimpleMDE({
-            element: this._editor.obj,
-            toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview", "side-by-side"],
+            element: this.input.node,
+            toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview"],
          });
+         this.editor.value(data.value);
 
          this.editor.codemirror.on('change', () => {
-            this.trigger('change');
-
-            this.data.value = this.editor.value();
+            this.props.designerRef && this.props.designerRef.updateElement(this.props.meta.data.name, { value: this.editor.value() });
          });
-
-         this.editor.value(this.data.value);
-      } else if (this.data.value) {
-         this.label.hide();
-         this._editor.append_content(marked.parse(this.data.value));
-      }
-   }
-
-   val(val = null) {
-      console.log(["markdow value", val])
-      if (val != null) {
-         this.designer && this.editor.value(val);
-
-         this.trigger('change');
       } else {
-         return this.data.value;
+         Object.values(this.node.getElementsByTagName("a")).forEach(a => {
+            a.addEventListener("click", (e) => {
+               e.preventDefault();
+               e.stopPropagation();
+               loopar.navigate(a.href);
+            });
+         });
       }
    }
-}
-
-export const markdown = (options) => {
-   return new Markdown(options);
 }

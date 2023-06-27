@@ -1,10 +1,12 @@
 'use strict';
 import path from "path";
-import {Capitalize, decamelize} from './helper.js';
+import {Capitalize, decamelize, lowercase} from './helper.js';
 import {loopar} from './loopar.js';
 import {file_manage} from "./file-manage.js";
+import multer from "multer";
+import sharp from "sharp";
 
-export default class App {
+export default class Router {
    #route_structure = ["host", "module", "document", "action"];
    controller = 'base-controller';
    debugger = false;
@@ -12,135 +14,198 @@ export default class App {
    constructor(options) {
       Object.assign(this, options);
 
-      //this.#construct();
-   }
-
-
-   route() {
-      /*new Router({server:
-         this.express
-      });*/
-
-      this.server.all('*', (req, res, next) => {
-         this.url = req._parsedUrl;
-         //this.request = req;
-         //this.response = res;
-
-         if (!this.is_asset_url) {
-            this.req = req;
-            this.res = res;
-            this.url = req._parsedUrl;
-            this.data = req.body;
-            /*new App({
-               res: res,
-               req: req,
-               url: this.url,
-               server: this.express,
-               data: req.body
-            });*/
-
-            this.#construct();
-         } else {
-            next()
+      const storage = multer.diskStorage({
+         destination: function (req, file, cb) {
+            cb(null, path.join(loopar.path_root, "public", 'uploads/'));
+         },
+         filename: function (req, file, cb) {
+            cb(null, file.originalname);
          }
       });
+
+      this.uploader = multer({ storage: storage }).any();
    }
 
-   #construct() {
-      //this.installing = false;
-      //Object.assign(this, this.req.query);
+   get #pathname() {
+      return this.url ? this.url.pathname : null;
+   }
 
+   get #is_asset_url() {
+      if (!this.#pathname) return false;
+
+      const url = this.#pathname.split("?");
+      const base_url = url[0].split("/");
+      const source = base_url[base_url.length - 1];
+
+      if (url[1]) return false;
+      if (source.includes(".html")) return true;
+      return source.includes(".") && source.split(".")[1].length > 0;
+   }
+
+   use(middleware ) {
+      this.server._router.stack = this.server._router.stack.filter(layer => layer.handle !== this.#custom404Middleware);
+      this.server.use(middleware);
+      this.server.use(this.#custom404Middleware);
+   }
+
+   #custom404Middleware = (req, res, next) => {
+      res.status(404).send(`
+            <div style="display: flex; justify-content: center; align-items: center; height: 100%; flex-direction: column; background-color: #0b0b0f; color: #95b3d6;">
+               <h1 style="font-size: 100px; margin: 0;">404</h1>
+               <h3 style="font-size: 30px; margin: 0;">Source not found</h3>
+               <span style="font-size: 20px; margin: 0;">${req.url}</span>
+               <hr style="width: 50%; margin: 20px 0;"/>
+               <span style="font-size: 20px; margin: 0;">Loopar</span>
+            </div>
+         `);
+   };
+
+   route() {
+      const saveThumbnails = async (req, res, next) => {
+         if (req.files && req.files.length > 0) {
+            try {
+               for (const file of req.files) {
+                  const file_name = file.filename;
+                  const file_path = file.path;
+                  const file_type = file.mimetype;
+                  const file_size = file.size;
+                  const file_extension = file.originalname.split(".")[1];
+
+                  const thumbnail_path = path.join(loopar.path_root, "public", "uploads", "thumbnails", file_name);
+                  const thumbnail = await file_manage.exist_file(thumbnail_path);
+
+                  if (!thumbnail) {
+                     await sharp(file_path).resize(200, 200).toFile(thumbnail_path);
+                  }
+               }
+            } catch (error) {
+               console.log(error);
+            }
+         }
+      }
+
+      const loadHttp = (req, res, next) => {
+         saveThumbnails(req, res, next);
+
+
+         this.data = req.body;
+         this.method = req.method;
+
+         this.#make_workspace()
+      }
+
+      this.server.use((req, res, next) => {
+         this.res = res;
+         this.req = req;
+         this.url = req._parsedUrl;
+         this.pathname = this.url.pathname;
+
+         if(this.#is_asset_url){
+            next();
+         }else {
+            if (req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
+               this.uploader(req, res, err => {
+                  if (err instanceof multer.MulterError) {
+                     console.log('A Multer error is detected', err);
+                     return res.status(500).json({error: err.message});
+                  } else if (err) {
+                     console.log('Error', err);
+                     return res.status(500).json({error: err.message});
+                  }
+                  loadHttp(req, res, next);
+               });
+            } else {
+               loadHttp(req, res, next);
+            }
+         }
+      });
+
+      this.server.use(this.#custom404Middleware);
+   }
+
+   #make_workspace() {
+      this.controller = "base-controller";
       this.#route_structure.forEach(prop => {
          if (prop.toString().length > 0) this[prop] = null;
       });
+      this.client = null;
 
-      let url
+      let url = this.pathname;
 
       const context = this.url.pathname.split("/")[1];
-      const workspace = ['desk', 'auth', 'api', 'core'].includes(context) ? context : 'web';
+      const workspace = ['desk', 'auth', 'api', 'loopar'].includes(context) ? context : 'web';
 
-      if(workspace === "core"){
-         url = this.url.pathname//.split("api")[1];
-         this.workspace = 'desk';
-         this.api_request = true;
+      if(workspace === "loopar") {
+         this.workspace = 'auth';
+         this.client = 'installer';
       }else if(workspace === "api"){
-         url = "/desk" + this.url.pathname.split("api")[1];
+         url = "/desk" + this.pathname.split("api")[1];
          this.workspace = 'desk';
          this.api_request = true;
       }else if(workspace === 'auth'){
-         url = "/auth" + this.url.pathname.split("auth")[1];
+         url = "/auth" + this.pathname.split("auth")[1];
          this.workspace = 'auth';
       }else if(workspace === 'desk'){
-         url = this.url.pathname.split("desk")[1];
+         url = this.pathname.split("desk")[1];
          this.workspace = 'desk';
       }else{
-         url = "/web" + this.url.pathname;
+         url = "/web" + this.pathname;
          this.workspace = 'web';
          this.action ??= 'view';
       }
 
-      url.split("/").forEach((prop, index) => {
-         this[this.#route_structure[index]] = `${decodeURIComponent(this.#route_structure[index] === 'document' ? Capitalize(prop) : prop)}`;
+      (url || "").split("/").forEach((prop, index) => {
+         this[this.#route_structure[index]] = `${decodeURIComponent(this.#route_structure[index] === 'document' ? Capitalize(prop) : prop || "")}`;
       });
 
       /**Because user can not navigate in auth workspace if is logged in**/
-      if(this.workspace === "auth" && loopar.current_user && this.action !== "logout"){
-         return this.res.redirect('/desk');
+      if (this.workspace === "auth" && loopar.isLoggedIn() && this.action !== "logout"){
+         //return this.res.redirect('/desk');
       }
 
-      /**Because user can not navigate in desk workspace if is not logged in**/
-      if(this.workspace === "desk" && !loopar.current_user){
-         return this.res.redirect('/auth/login/login');
-      }
-
-      this.#send_controller();
+      this.#make_controller();
    }
 
-   #send_controller() {
+   #make_controller() {
+      this.controller = "base-controller";
+      /**
+       * When workspace is desk and module view is called from sidebar
+       * example: /desk/core or /desk/auth
+       * */
       if (!this.document) {
-         this.document_name = this.module;
-         this.module = 'core';
-         this.document = 'Module';
+         this.document_name = this.module; /*Because Module called is a document_name on Module Document*/
+         this.module = 'core'; /*because Module document is in core module*/
+         this.document = 'Module'; /*Because Module is a document*/
          this.action = 'view';
       }
 
       const res = this.res;
 
-      console.log({
-         database_server_initialized: loopar.database_server_initialized,
-         database_initialized: loopar.database_initialized,
-         framework_installed: loopar.framework_installed,
-         installing: this.installing,
-      })
-
+      /**When database is not initialized */
       if (!loopar.database_server_initialized) {
          this.controller = 'installer-controller';
 
-         if (this.document !== 'Loopar' || this.action !== 'connect') {
-            return res.redirect('/core/loopar/connect');
+         if (this.document !== 'Installer' || this.action !== 'connect') {
+            return res.redirect('/loopar/installer/connect');
          } else {
-            this.module = "core";
-            this.document = "Loopar";
+            this.module = "loopar";
+            this.document = "Installer";
             this.action = "connect";
          }
       } else if (!loopar.database_initialized || !loopar.framework_installed) {
          this.controller = 'installer-controller';
 
-         if (this.document !== 'Loopar' || this.action !== 'install') {
-            return res.redirect('/core/loopar/install');
+         if (this.document !== 'Installer' || this.action !== 'install') {
+            return res.redirect('/loopar/installer/install');
          } else {
-            this.module = "core";
-            this.document = "Loopar";
+            this.module = "loopar";
+            this.document = "Installer";
             this.app_name = "loopar";
             this.action = "install";
          }
-      } else {
-         if(this.installing){
-            this.controller = 'installer-controller';
-         }
-
-         if (this.document === 'Loopar' && !this.installing) {
-            return res.redirect('/desk');
+      }else{
+         if(this.client === "installer"){
+            return this.res.redirect('/desk');
          }
       }
 
@@ -153,40 +218,28 @@ export default class App {
       await this.#make();
 
       const importer_controller = await file_manage.import_file(this.controller_path_file);
+      const controller = new importer_controller.default({...this, ...this.req.query, router: this});
+      this.action = this.action && this.action.length > 0 ? this.action : controller.default_action;
+      controller.client = this.client || (["update", "create"].includes(this.action) ? "form" : this.action);
+      global.current_controller = controller;
 
-      global.current_controller = new importer_controller.default({...this, ...this.req.query});
-      global.current_controller.client = ["update", "create"].includes(this.action) ? "form" : this.action;
+      const action = `action_${this.action}`;
 
-      const action = `action_${this.action || current_controller.default_action}`;
-
-      const execute_action = () => {
-         if (current_controller[action] && typeof current_controller[action] === "function") {
-            current_controller[action]();
-         } else {
-            current_controller.not_found();
-         }
+      const send_action = () => {
+         controller[controller[action] && typeof controller[action] === "function" ? action : "not_found"]();
       }
 
-      if (this.controller === 'installer-controller') {
-         execute_action();
+      if (this.controller === 'installer-controller' || this.debugger || this.workspace === "web") {
+         send_action();
       } else {
-         if (this.debugger) {
-            execute_action();
-         } else {
-            if(!this.exist_controller && !this.api_request){
-               /**Request page Not Found**/
-               return current_controller.not_found();
-            }else if(this.workspace ==="web") {
-               /**Request page is Web**/
-               execute_action();
-            }else{
-               /**Request page is Desk**/
-               current_controller.isAuthenticated().then(result => {
-                  if (result) current_controller.isAuthorized().then(result => {
-                     if (result) execute_action();
-                  });
+         if(!this.exist_controller && !this.api_request){
+            return current_controller.not_found();
+         }else{
+            controller.isAuthenticated().then(authenticated => {
+               authenticated && controller.isAuthorized().then(authorized => {
+                  authorized && send_action();
                });
-            }
+            });
          }
       }
    }
@@ -199,6 +252,7 @@ export default class App {
       await this.#set_controller_path();
 
       this.controller_path_file = path.join(this.controller_path, `${this.controller_name}-controller.js`);
+
       this.exist_controller = await file_manage.exist_file(this.controller_path_file);
 
       this.controller_path_file = this.exist_controller ? this.controller_path_file : `./controller/${this.controller}.js`;
@@ -209,6 +263,7 @@ export default class App {
          this.app_name = null;
       }else {
          const module = await loopar.db.get_value("Document", "module", this.document);
+         if(module) this.module = module;
          this.app_name = await loopar.db.get_value("Module", "app_name", module);
          //this.app_type = await loopar.db.get_value("App", "type", this.app_name);
       }
@@ -224,7 +279,8 @@ export default class App {
    }
 
    async #set_module_path() {
-      this.module_path = path.join(this.app_route, "modules", this.module);
+      const module = this.module.toLowerCase().replaceAll(/\s+/g, '-')
+      this.module_path = path.join(this.app_route, "modules", module);
    }
 
    async #set_controller_path() {

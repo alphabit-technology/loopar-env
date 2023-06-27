@@ -1,6 +1,7 @@
 import {loopar} from "../../../core/loopar.js";
 import {file_manage} from "../../../core/file-manage.js";
 import sha1 from "sha1";
+import path from "path";
 
 export default class Installer {
    app_name = "loopar";
@@ -190,6 +191,7 @@ export default class Installer {
 
    async __data_connect__() {
       const db_config = await file_manage.get_config_file('db.config');
+      db_config.doc_structure = JSON.stringify(this.form_connect_structure)
       return {
          __DOCTYPE__: {
             doc_structure: "",
@@ -234,10 +236,10 @@ export default class Installer {
    async #insert_record(table, data, by_file = null) {
       if(await loopar.db.get_value(table, 'name', data.name, null, null)){
          const to_update_doc = await loopar.get_document(table, data.name, data, by_file);
-         to_update_doc.save();
+         to_update_doc.save({validate: false});
       }else{
          const document = await loopar.new_document(table, data, null, by_file);
-         await document.save();
+         await document.save({validate: false});
       }
    }
 
@@ -260,6 +262,7 @@ export default class Installer {
    }
 
    async install() {
+      console.warn("Installing " + this.app_name);
       loopar.installing = true;
       if(this.app_name === 'loopar') {
          await this.set_db_config();
@@ -273,6 +276,31 @@ export default class Installer {
 
       loopar.installing = false;
       return true;
+   }
+
+   async pull() {
+      const exist = await loopar.db.get_value('App', "name", this.app_name, null, null);
+      const app_file = file_manage.get_config_file("installer", path.join("apps",this.app_name));
+
+      loopar.validateGitRepository(app_file.App[this.app_name].git_repo);
+
+      if(!exist){
+         loopar.throw(`App ${this.app_name} is not installed, please install it first`);
+         return;
+      }
+
+      return new Promise((resolve, reject) => {
+         loopar.git(this.app_name).pull(async (err, update) => {
+            err && loopar.throw(err);
+
+            if (update && update.summary.changes) {
+               await this.update();
+               resolve(true);
+            }else{
+               loopar.throw(`App ${this.app_name} is already updated`);
+            }
+         });
+      });
    }
 
    async update() {

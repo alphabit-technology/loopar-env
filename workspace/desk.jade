@@ -1,29 +1,8 @@
 extends base/base-document
 
-block body
+block content
     body.dark-skin(data-spy='scroll' data-offset='76')
-        include base/unsupported-browsers
-
-        script(src='#{client_importer}' type='module')
         .app#app-root
-            script.
-               const workspace = "desk";
-               console.log("response from desk.jade: ", "!{workspace}");
+            include base/importer
 
-               Promise.all([
-               import((`/components/element-manage.js`)),
-               import((`/desk-interface.js`)),
-               import('#{client_importer}')
-               ]).then(([element_manage, desk_interface, app_imported]) => {
-               new element_manage.default().initialize().then(() => {
-               const domContainer = document.querySelector("#app-root");
-               const root = ReactDOM.createRoot(domContainer);
-               root.render(
-               React.createElement(desk_interface.default, {data: !{sidebar}}, [
-               React.createElement(app_imported.default, {data: !{content}})
-               ])
-               );
-               });
-               });
     include base/footer-scripts
-    include base/css

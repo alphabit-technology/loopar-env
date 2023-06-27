@@ -30,7 +30,8 @@ export default class AuthController {
          }
 
          if (this.req.session.user) { /** User is logged */
-            const user = await loopar.get_user(this.req.session.user.name);
+            //const user = {name: "Administrator", "email": "test"}//loopar.get_user(this.req.session.user.name);
+            const user = loopar.get_user(this.req.session.user.name);
 
             if (user && user.name !== 'Administrator' && user.disabled) {
                execute_action(this.req.method, 'Not permitted', '/auth/login/login');
@@ -48,6 +49,8 @@ export default class AuthController {
                resolve(false);
             }
          } else if (this.is_login_action && (this.is_free_action || this.is_enable_action)) {
+            resolve(true);
+         } else if(this.free_access && this.workspace !== 'desk') {
             resolve(true);
          } else {
             execute_action(this.method, 'Your session has ended, please log in again.', '/auth/login/login');
@@ -76,6 +79,6 @@ export default class AuthController {
    }
 
    before_action() {
-      return new Promise.all([this.isAuthenticated(), this.isAuthorized()]);
+      return Promise.all([this.isAuthenticated(), this.isAuthorized()]);
    }
 }

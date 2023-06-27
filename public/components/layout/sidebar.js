@@ -15,7 +15,6 @@ export class Sidebar extends Div{
    }
 
    toggle(collapsed = null) {
-      console.log('toggle sidebar')
       this.collapsed = collapsed !== null ? collapsed : !this.collapsed;
 
       localStorage.setItem('sidebar-collapsed', this.collapsed);

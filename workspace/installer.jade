@@ -1,4 +1,3 @@
-extends base/login-layout
 
 block header
     h1.h3  Initialize Loopar
@@ -10,7 +9,6 @@ block header
 
     script(src='#{client_importer}' type='module')
     script.
-       console.log(["installer.jade"])
        var request_data = !{content};
        Promise.all([
        import('/components/element-manage.js'),

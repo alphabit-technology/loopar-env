@@ -1,6 +1,9 @@
 import Div from "/components/elements/div.js";
 import {a,span, ul, li, image, div, input, button, i, h6} from "/components/elements.js";
 import {loopar} from "/loopar.js";
+import { avatarLetter } from "../../tools/helper.js";
+import { fileManager } from "../tools/file-manager.js";
+
 
 class TopBarClass extends Div {
    className = "top-bar";
@@ -11,6 +14,7 @@ class TopBarClass extends Div {
    render(){
       const user = this.props.user || {};
       const dropdown_user_left = this.props.width > 991  ? 0 : -84;
+      const profile_image = fileManager.getImage(user, "profile_picture");
 
       return [
          div({className: "top-bar border-bottom"}, [
@@ -36,7 +40,7 @@ class TopBarClass extends Div {
             div({className: "top-bar-list"}, [
                div({className: "top-bar-item px-2 d-md-none d-lg-none d-xl-none"}, [
                   button({
-                     className: "hamburger hamburger-squeeze bg-green",
+                     className: "hamburger hamburger-squeeze",
                      type: "button",
                      onClick: () => loopar.root_app.toggleMenu()
                   }, [
@@ -125,10 +129,10 @@ class TopBarClass extends Div {
                         type: "button"
                      }, [
                         span({className: "user-avatar user-avatar-md"}, [
-                           div({
+                           profile_image ? image({ src: profile_image, alt: "Profile Picture" }) : div({
                               className: "tile tile-circle bg-orange",
-                              style: {display: "block"}
-                           }, user.avatar || "")
+                              style: { display: "block" }
+                           }, avatarLetter(user.name) || "")
                         ]),
                         span({className: "account-summary pr-lg-4 d-none d-lg-block"}, [
                            span({className: "account-name"}, user.name || "Loading..."),

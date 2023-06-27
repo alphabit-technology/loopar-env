@@ -1,252 +1,286 @@
-import {elements} from "/components/elements.js";
-import {http} from "/utils/http.js";
+import {div, span, b, input, ul, li, h6, i} from "/components/elements.js";
+import {http} from "/router/http.js";
 import {BaseInput} from "/components/base/base-input.js";
 import {loopar} from "/loopar.js";
 
-export class Select extends BaseInput {
+export default class Select extends BaseInput {
    #model = null;
    filtered_options = [];
    opened = false;
-   internal_click = false;
+   inside = false;
    position_setted = false;
+   title_fields = ["value"]
 
    constructor(props) {
       super(props);
 
-      this.make();
+      this.state = {
+         ...this.state,
+         is_open: false,
+         direction: 'below',
+         valid: true,
+         simpleInput: props.simpleInput || false,
+         withoutLabel: props.withoutLabel || false,
+         rows: []
+      };
    }
 
-   make() {
-      super.make();
+   render(){
+      const data = this.data;
 
-      this.add_class("form-group select-2 select-closed");
+      this.assigned_value = data.value;
+      const {is_open, direction, valid, focus, rows=[]} = this.state;
+      const value = this.optionValue();
 
-      this.input.add_class('select2-hidden-accessible');
-      this.label.add_class('control-label');
-      this.selector = this.input;
+      const base_class = 'select2-container';
+      const opened_class = is_open ? base_class + '--open' : '';
+      const focus_class = focus ? base_class + '--focus' : '';
 
-      this.input_search = elements({
-         props: {
-            class: 'select2-search__field'
-         }
-      }).tag('input');
-
-      this.result_options = elements({
-         props: {
-            class: 'select2-results__options'
-         },
-         content: [
-            elements({
-               props: {
-                  class: 'select2-results__option select2-results__message',
-               },
-               content: 'Please enter 1 or more characters'
-            }).tag('li')
-         ]
-      }).tag('ul');
-
-      this.selection_area = elements({
-         props: {
-            class: 'select2-selection__rendered', role: 'textbox', 'aria-readonly': true
-         }
-      }).tag('span');
-
-      this.result_area = elements({
-         wrapper: this,
-         props: {
-            class: 'select2 select2-container select2-container--default select2-container--below',
-            style: 'width: 100%;'
-         },
-         content: {
-            selection: elements({
-               props: {
-                  class: 'selection'
-               },
-               content: elements({
-                  props: {
-                     class: "select2-selection select2-selection--single",
+      return super.render([
+         div({
+            className: `select-2 select-${is_open ? 'opened' : 'closed'}`,
+         }, [
+            span({
+               className: `select2 select2-${data.size} ${base_class} ${base_class}--default ${base_class}--${direction} ${focus_class} ${opened_class}`,
+               style: {width: '100%'},
+            }, [
+               span({
+                  className: 'selection',
+                  ref: selection => this.selection = selection,
+                  onClick: e => {
+                     e.stopPropagation();
+                     e.preventDefault();
+                     this.focus();
+                     this.toggleClose();
+                  },
+                  onMouseLeave: (e) => {
+                     e.stopPropagation();
+                     this.inside = false;
+                  },
+                  onMouseEnter: (e) => {
+                     e.stopPropagation();
+                     this.inside = true;
+                  }
+               },[
+                  span({
+                     className: `select2-selection select2-selection--single${this.state.is_invalid ? ' is-invalid' : ''}`,
                      role: 'combobox', 'aria-haspopup': true, 'aria-expanded': false, 'aria-disabled': false,
-                     'aria-labelledby': 'select2-select2-data-remote-container'
-                  },
-                  content: {
-                     selection_area: this.selection_area,
-                     arrow: elements({
-                        props: {
-                           class: 'select2-selection__arrow',
-                           role: 'presentation'
-                        },
-                        content: '<b role="presentation"></b>'
-                     }).tag('span')
+                     'aria-labelledby': 'select2-select2-data-remote-container',
+                     //style: {maxHeight: 28, fonSize: 12}
+                  },[
+                     span({className: 'select2-selection__rendered', role: 'textbox', 'aria-readonly': true}, [
+                        value.value || value.option ? [
+                           span({className: 'select2-selection__clear', onClick:(e)=> {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              this.setOptionSelect(null);
+                           }}, '×'),
+                           div(value.value || value.option)
+                        ]:
+                        span({className: 'select2-selection__placeholder'}, data.label || 'Select an option'),
+                     ]),
+                     span({className: 'select2-selection__arrow', role: 'presentation'}, [
+                        b({role: 'presentation'}),
+                     ])
+                  ])
+               ]),
+               span({className: 'dropdown-wrapper', 'aria-hidden': true}),
+               span({
+                  className: 'select2-container select2-container--default select2-container--open select-loaded',
+                  style: {position: 'absolute', left: 0, width: '100%'},
+                  onMouseLeave: () => {
+                     this.inside = false;
                   }
-               }).tag('span')
-            }).tag('span'),
-            dropdown: elements({
-               props: {
-                  class: 'dropdown-wrapper',
-                  'aria-hidden': true
-               }
-            }).tag('span'),
-            virtual_select: elements({
-               props: {
-                  class: 'select2-container select2-container--default select2-container--open select-loaded',
-                  style: 'position: relative;left: 0;width: 100%;'
-               },
-               content: elements({
-                  props: {
-                     class: 'select2-dropdown select2-dropdown--below',
-                     style: 'width: 100%;'
-                  },
-                  content: {
-                     search: elements({
-                        props: {
-                           class: 'select2-search select2-search--dropdown'
-                        },
-                        content: this.input_search
-                     }).tag('span'),
-                     result: elements({
-                        props: {
-                           class: 'select2-results'
-                        },
-                        content: {
-                           ul: this.result_options
-                        }
-                     }).tag('span')
-                  }
-               }).tag('span').on('mouseleave')
-            }).tag('span')
-         }
-      }).tag('span');
-
-      this.make_events();
-
-      this.data.selected && (this.default_selected = this.data.selected);
-
-      this.title_fields = "value";
+               }, [
+                  span({
+                     ref: selector => this.selector = selector,
+                     className: `select2-dropdown select2-dropdown--${direction} ${valid ? '' : 'is-invalid'}`,
+                     style: {...{width: '100%', position: 'inherit'}, ...(direction === "above" ? {top: '-280px'} : {})},
+                  }, [
+                     span({className: 'select2-search select2-search--dropdown'},
+                        input({
+                           className: "select2-search__field" ,
+                           ref: input_search => this.input_search = input_search,
+                           placeholder: 'Enter 1 or more characters to search',
+                           onKeyUp: e => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              this.#search(true);
+                           },
+                           onChange: e => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                           },
+                           onClick: (e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              this.inside = true;
+                           }
+                        })
+                     ),
+                     span({className: 'select2-results'},
+                        ul({
+                           className: 'select2-results__options',
+                           style: direction === "above" ? {height: "200px"} : {}
+                        }, [
+                           rows.length > 0 ? rows.map(row => {
+                              return li({
+                                 className: 'select2-results__option select2-results__option--higlighted',
+                                 role: "option", 'aria-selected': false,
+                                 onClick: () => {
+                                    this.setOptionSelect(row);
+                                 }
+                              }, [
+                                 div({className: "media"}, [
+                                    div({className: "media-body"}, [
+                                       h6({className: "my-0"}, this.optionValue(row).value || this.optionValue(row).option),
+                                       ul({className: "list-inline small text-muted"}, [
+                                          li({className: "list-inline-item"}, [
+                                             i({className: "fa fa-flash"}),
+                                             this.optionValue(row).option
+                                          ])
+                                       ])
+                                    ])
+                                 ])
+                              ])
+                           }) : li({className: 'select2-results__option select2-results__message'}, 'No results found')
+                        ])
+                     )
+                  ])
+               ])
+            ])
+         ]),
+      ]);
    }
 
-   make_events() {
-      this.result_area.selection.on('click', () => {
-         this.toggle_close();
-      });
-
-      this.result_area.selection.on('mouseleave', () => {
-         this.internal_click = false;
-      }).on('mouseenter', () => {
-         this.internal_click = true;
-      });
-
-      this.result_area.virtual_select.on('mouseleave', () => {
-         this.internal_click = false;
-      }).on('mouseenter', () => {
-         this.internal_click = true;
-      });
-
-      this.input_search.on('keyup', () => {
-         this.#search();
-      });
+   focus() {
+      this.setState({focus: true});
    }
 
-   toggle_close() {
-      this.opened ? this.close() : this.open();
+   blur() {
+      this.setState({focus: false});
+   }
+
+   componentDidMount(){
+      super.componentDidMount();
+
+      this.input.addClass('select2-hidden-accessible');
+      //this.label.addClass('control-label hide');
+
+      if(this.state.simpleInput){
+         this.input.hide();
+         this.label.hide();
+      }
+
+      if(this.state.withoutLabel){
+         this.label.addClass('select2-hidden-accessible');
+      }
+   }
+
+   toggleClose() {
+      this.state.is_open ? this.close() : this.open();
    }
 
    open() {
       this.position_setted = false;
-      if (this.opened) return;
-      this.opened = true;
+      this.setState({is_open: true});
 
-      this.result_area.add_class('select2-container--focus select2-container--open');
-      this.remove_class('select-closed').add_class('select-opened');
+      this.#search(false);
 
-      this.input_search.focus();
-      this.#search();
+      setCurrentSelect(this);
+      this.setPosition();
 
-      loopar.ui.current_select = this;
-      this.set_position();
+      setTimeout(() => {
+         this.input_search?.node?.focus();
+      }, 20);
    }
 
    close() {
-      this.opened = false;
-      this.result_area.remove_class('select2-container--focus select2-container--open');
-      this.remove_class('select-opened').add_class('select-closed');
+      this.setState({is_open: false});
    }
 
-   #search() {
-      if (this.is_local) {
-         const q = this.input_search.val().toLowerCase();
+   #search(delay = true) {
+      if (this.isLocal) {
+         const q = this.searchQuery.toLowerCase();
 
-         this.filtered_options = this.options.filter(row => {
+         this.filtered_options = this.optionsSelect.filter(row => {
             return (typeof row == "object" ? (`${row.option} ${row.value}`) : row).toLowerCase().includes(q);
          }).map(row => {
             return typeof row == "object" ? row : {name: row, value: row}
          });
 
-         this.render_result();
+         this.renderResult();
       } else {
-         this.#model = this.options[0];
-         this.get_server_data();
+         this.#model = this.optionsSelect[0];
+         if (delay){
+            clearTimeout(this.last_search);
+            this.last_search = setTimeout(() => {
+               this.getServerData();
+            }, 200);
+         }else{
+            this.getServerData();
+         }
       }
    }
 
-   get is_local() {
-      return this.options.length > 1;
+   get isLocal() {
+      return this.optionsSelect.length > 1;
    }
 
    get model() {
       return (this.#model.option || this.#model.name);
    }
 
-   get options() {
-      const opts = (this.data.options || "");
-      return typeof opts == 'object' && Array.isArray(opts) ? opts :
-         opts.split(/\r?\n/).map(item => ({option: item, value: item}));
+   get options(){
+
    }
 
-   get_server_data() {
+   get optionsSelect() {
+      const opts = (this.data.options || "");
+
+      if(typeof opts == 'object'){
+         if(Array.isArray(opts)){
+            return opts;
+         }else{
+            return Object.keys(opts).map(key => ({option: key, value: opts[key]}));
+         }
+      }else if(typeof opts == 'string'){
+         return opts.split(/\r?\n/).map(item => ({option: item, value: item}));
+      }
+
+      /*return typeof opts == 'object' && Array.isArray(opts) ? opts :
+         opts.split(/\r?\n/).map(item => ({option: item, value: item}));*/
+   }
+
+   get searchQuery() {
+     return this.input_search?.node?.value || "";
+   }
+
+   focus() {
+      this.input_search?.node?.focus();
+   }
+
+   getServerData() {
       http.send({
          action: `/api/${this.model}/search`,
-         params: {q: this.input_search.val() || ''},
+         params: {q: this.searchQuery},
          success: r => {
-
             this.title_fields = r.title_fields;
             this.filtered_options = r.rows;
-            this.render_result();
+            this.renderResult();
          },
          error: r => {
             console.log(r);
-         }
+         },
+         freeze: false
       });
    }
 
-   render_result() {
-      const template = (row) => {
-         return elements({
-            props: {
-               class: 'select2-results__option select2-results__option--highlighted',
-               role: 'option', 'area-selected': false
-            },
-            content: `
-                <div class="media">
-                    <div class="media-body"><h6 class="my-0">${this.option_value(row).value}</h6>
-                        <ul class="list-inline small text-muted">
-                            <li class="list-inline-item"><i class="fa fa-flash"></i> ${this.option_value(row).option}</li>
-                        </ul>
-                    </div>
-                </div>
-                `
-         }).tag('li').on('click', () => {
-            this.set_option_select(row);
-         });
-      }
-
-      this.result_options.empty();
-
-      this.filtered_options.forEach(row => {
-         this.result_options.append(template(row), false, false);
-      });
+   renderResult() {
+      this.setState({rows: this.filtered_options});
    }
 
-   option_value(option = this.current_selection) {
+   optionValue(option = this.currentSSelection) {
       const value = (data) => {
          if(data && typeof data == 'object') {
             if(Array.isArray(this.title_fields)) {
@@ -267,18 +301,15 @@ export class Select extends BaseInput {
       } : {option: option || this.assigned_value, value: option || this.assigned_value};
    }
 
-   set_option_select(row) {
+   setOptionSelect(row) {
       this.close();
       this.assigned_value = row;
-      this.render_value();
+      this.renderValue();
    }
 
-   render_value(trigger_change = true) {
-      this.selection_area.empty().append_content(
-         `</div>${this.option_value().value || ""}</div>`
-      );
-
-      if (trigger_change) this.trigger('change');
+   renderValue(trigger_change = true) {
+      const value = this.optionValue();
+      this.handleInputChange({target: {value: value.option || value.value}});
    }
 
    /**
@@ -289,22 +320,21 @@ export class Select extends BaseInput {
     */
    val(val = null, {trigger_change = true} = {}) {
       if (val != null) {
-         if (val === "") val = this.default_selected;
          this.assigned_value = val;
-         this.render_value(trigger_change);
+         this.renderValue(trigger_change);
          return this;
       } else {
-         return this.option_value().option
+         return this.data.value
       }
    }
 
-   get current_selection() {
-      return Object.keys(this.filtered_options) > 0 ?
-         this.filtered_options.filter(item => this.option_value(item).option === this.option_value(this.assigned_value).option)[0]
+   get currentSSelection() {
+      return Object.keys(this.filtered_options || {}) > 0 ?
+         this.filtered_options.filter(item => this.optionValue(item).option === this.optionValue(this.assigned_value).option)[0]
          : this.assigned_value;
    }
 
-   set_position() {
+   setPosition() {
       const getPosition = (el) => {
          let yPos = 0;
 
@@ -316,68 +346,27 @@ export class Select extends BaseInput {
          return yPos;
       }
 
-      const selector_parent = this.result_area.virtual_select;
-      const selector = selector_parent.content;
-      const position = getPosition(this.obj);
+      const position = getPosition(this.node);
       const windowHalf = window.innerHeight / 2;
 
-      if (position > windowHalf) {
-         this.result_area.remove_class('select2-container--below', true).add_class('select2-container--above');
-         selector.remove_class('select2-dropdown--below', true).add_class('select2-dropdown--above');
-         selector_parent.css({top: '-280px'});
-         this.result_options.css({height: '200px'});
-      } else {
-         this.result_area.remove_class('select2-container--above', true).add_class('select2-container--below')
-         selector.remove_class('select2-dropdown--above', true).add_class('select2-dropdown--below');
-         selector_parent.css({top: '0'});
-      }
+      this.setState({direction: position > windowHalf ? 'above' : 'below'});
+
 
       this.position_setted = true;
    }
-
-   validate() {
-      const validate = super.validate();
-
-      if (!validate.valid) {
-         this.selector.remove_class('is-invalid');
-      } else {
-         this.selector.add_class('is-invalid');
-      }
-
-      return validate;
-   }
-
-   set_size(size='md') {
-      this.input_search.remove_class(`form-control-${this.data.size}`).add_class(`form-control-${size}`);
-      this.data.size = size;
-
-      return this;
-   }
-
-   invalid_status() {
-      this.result_area.selection.content.add_class('is-invalid');
-   }
-
-   valid_status() {
-      this.result_area.selection.content.remove_class('is-invalid');
-   }
 }
 
-export const select = (options) => {
-   return new Select(options);
+const setCurrentSelect = (select) => {
+   loopar.ui.current_select = select;
 }
 
 document.addEventListener('click', () => {
    const current_select = loopar.ui.current_select;
 
-   current_select && !current_select.internal_click && current_select.opened && current_select.close();
+   setTimeout(() => {
+      if(current_select && !current_select.inside){
+         current_select.close();
+         current_select.blur();
+      }
+   }, 0);
 }, true);
-
-/*(function () {
-   document.onmousemove = handleMouseMove;
-
-   function handleMouseMove() {
-      const current_select = loopar.ui.current_select;
-      //current_select && !current_select.opened && !current_select.position_setted && current_select.set_position();
-   }
-})();*/

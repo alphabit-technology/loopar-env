@@ -4,65 +4,99 @@ const common_props = ['draggable', 'draggable_actions'];
 const droppable_props = ['droppable', 'droppable_actions'];
 
 const varchar_len = '(255)';
-const [text, long_text, varchar, decimal, int, longint, mediumint, date, date_time, time] =
-   ['text', 'longtext', 'varchar', 'decimal', 'int', 'mediumint', 'longint', 'date', 'date_time', 'time'];
+const [text,long_text,varchar,decimal,int,mediumint,longint,date,date_time,time] =
+   ['text', 'longtext', 'varchar', 'decimal', 'int', 'mediumint', 'longint', 'date', 'datetime', 'time'];
 
-export const element_definition = Object.freeze(Object.entries({
-   'button': {type: [varchar, varchar_len]},
-   'input': {type: [varchar, varchar_len]},
-   'password': {type: [varchar, varchar_len]},
-   'date': {type: [date, '']},
-   'date_time': {type: [date_time, '(6)'], className: 'DateTime'},
-   'time': {type: [time, '6']},
-   'currency': {type: [decimal, '(18,6)']},
-   'integer': {type: [int, '(11)']},
-   'decimal': {type: [decimal, '(18,6)']},
-   'select': {type: [varchar, varchar_len]},
-   'textarea': {type: [long_text, ''], element_name: 'textarea'},
-   'text_editor': {type: [long_text, ''], className: 'TextEditor'},
-   'markdown': {type: [long_text, '']},
-   'checkbox': {type: [int, '(11)']},
-   'switch': {element_name: 'switch', type: [int, '(11)']},
-   'div': {props: droppable_props,},
-   'row': {props: droppable_props},
-   'col': {props: droppable_props},
-   'table': {},
-   'card': {props: droppable_props},
-   'panel': {props: droppable_props},
-   'form': {props: droppable_props},
-   'icon': {},
-   'id': {type: [int]}
-}).reduce((acc, current) => {
-   const props = {props: (current[1].props || []).concat(common_props)};
-   const type = {type: current[1].type || []};
-   acc[current[0]] = Object.assign({element_name: current[1].element_name || current[0]}, props, type);
+const [LAYOUT_ELEMENT, DESIGN_ELEMENT, FORM_ELEMENT] = ['layout', 'design', 'form'];
+
+export const elements_definition = {
+   [LAYOUT_ELEMENT]: [
+      {element: "section", icon: "fa fa-th-large"},
+      {element: "div", icon: "fa fa-code"},
+      {element: "row", icon: "fa fa-plus"},
+      {element: "col", icon: "fas fa-columns"},
+      {element: "card", icon: "fa fa-id-card"},
+      {element: "panel", icon: "fa fa-window-maximize"},
+      //{element: "table", icon: "fa fa-table"},
+      {element: "banner", icon: "fa fa-image"},
+      {element: "banner_image", icon: "fa fa-image"},
+      {element: "tabs", icon: "fa fa-window-maximize"}
+   ],
+   [DESIGN_ELEMENT]: [
+      {element: "image", icon: "fa fa-image"},
+      {element: "text_block", icon: "fa fa-font"},
+      {element: "text_block_icon", icon: "fa fa-font"},
+      {element: "button", icon: "fa fa-hand-pointer"},
+      //{element: "icon", icon: "fa fa-hand-pointer"},
+      {element: "markdown", icon: "fa fa-text-height"},
+      {element: "title", icon: "fa fa-heading"},
+      //{element: "subtitle", icon: "fa fa-heading"},
+      //{element: "link", icon: "fa fa-link"},
+      //{element: "list", icon: "fa fa-list"},
+      {element: "stripe", icon: "fab fa-stripe"},
+      {element: "gallery", icon: "fa fa-images"},
+   ],
+   [FORM_ELEMENT]: [
+      {element: "input", icon: "fa fa-italic", type: [varchar, varchar_len]},
+      {element: "password", icon: "fa fa-key", type: [varchar, varchar_len]},
+      {element: "date", icon: "fa fa-calendar-plus", type: [date, ''], format: 'YYYY-MM-DD'},
+      {element: "date_time", icon: "fa fa-calendar-plus", type: [date_time, ''], format: 'YYYY-MM-DD HH:mm:ss'},
+      {element: "time", icon: "fa fa-calendar-plus", type: [time, '6'], format: 'HH:mm:ss'},
+      {element: "currency", icon: "fa fa-dollar-sign", type: [decimal, '(18,6)'], show_in_design: false},
+      {element: "integer", icon: "fa-duotone fa-input-numeric", type: [int, '(11)'], show_in_design: false},
+      {element: "decimal", icon: "fa fa-00", type: [decimal, '(18,6)'], show_in_design: false},
+      {element: "select", icon: "fa fa-search-plus", type: [varchar, varchar_len]},
+      {element: "textarea", icon: "fa fa-text-height", type: [long_text, '']},
+      {element: "text_editor", icon: "fa fa-text-height", type: [long_text, '']},
+      {element: "checkbox", icon: "fa fa-check-square", type: [int, '(11)']},
+      {element: "switch", icon: "fa fa-toggle-on", type: [int, '(11)']},
+      {element: "id", icon: "fa fa-id-card", type: [int], show_in_design: false},
+      {element: "form_table", icon: "fa fa-table", type: [varchar, varchar_len]},
+      {element: "markdown_input", icon: "fa fa-text-height", type: [long_text, '']},
+      {element: "designer", icon: "fa fa-id-card", type: [long_text, '']},
+      {element: "file_input", icon: "fa fa-file", type: [long_text, '']},
+      {element: "file_uploader", icon: "fa fa-upload", type: [long_text, '']},
+      {element: "image_input", icon: "fa fa-image", type: [long_text, '']},
+      {element: "color_picker", icon: "fa fa-palette", type: [varchar, varchar_len] }
+   ]
+}
+
+export const elements_dict = Object.freeze(Object.entries(elements_definition).reduce((acc, [key, value]) => {
+   value.forEach(element => {
+      const props = {props: (element.props || []).concat(common_props)};
+      acc[element.element] = {...element, ...props, ...{group: key, is_writable: key === FORM_ELEMENT}};
+   });
 
    return acc;
 }, {}));
 
-export const elements_names = Object.freeze(Object.entries(element_definition).map(([key, value]) => {
-   if (!global[key.toUpperCase()]) {
-      Object.defineProperty(global, key.toUpperCase(), {
-         get: () => value.element_name || key,
-         set: () => {
-            throw (key + ' is a Safe CONST and cannot be re-declared.')
-         }
-      });
+export const elements_names = Object.freeze(Object.values(elements_definition).reduce((acc, current) => {
+   acc = [...acc, ...current.map(element => {
+      if (!global[element.element.toUpperCase()]) {
+         Object.defineProperty(global, element.element.toUpperCase(), {
+            get: () => element.element,
+            set: () => {
+               throw (element.element + ' is a Safe CONST and cannot be re-declared.')
+            }
+         });
+      }
 
-      return value.name || key;
-   }
-}));
+      return element.element;
+   })];
 
-const manual_elements = Object.freeze({
-   //[TAG]: TAG
-});
+   return acc;
+}, []));
 
 class DataInterface {
    #element = null;
 
    constructor(element) {
       this.#element = element;
-      this.data = Object.assign({}, (element.data || {}), element);
+      //this.data = Object.assign({}, (element.data || {}), element);
+   }
+
+   get data() {
+      return this.#element.data || this.#element;
    }
 
    debug_text(text) {
@@ -82,7 +116,8 @@ class DataInterface {
    /**function to convert  */
 
    get value() {
-      return this.#element.val ? this.#element.val() : this.#element.value;
+      return (this.#element.val && typeof this.#element.val === 'function') ? this.#element.val() : this.data.value;
+      //return this.data.value// this.#element.val ? this.#element.val() : this.#element.value;
    }
 
    validator_rules() {
@@ -132,27 +167,18 @@ class DataInterface {
    }
 
    isDate() {
-      var regex = /^(?:(?:31(\/|-|\.)(?:0?[13578]|1[02]))\1|(?:(?:29|30)(\/|-|\.)(?:0?[1,3-9]|1[0-2])\2))(?:(?:1[6-9]|[2-9]\d)?\d{2})$|^(?:29(\/|-|\.)0?2\3(?:(?:(?:1[6-9]|[2-9]\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\d|2[0-8])(\/|-|\.)(?:(?:0?[1-9])|(?:1[0-2]))\4(?:(?:1[6-9]|[2-9]\d)?\d{2})$/;
       return {
-         valid: regex.test(this.value),
+         valid: dayjs(this.value).isValid(),
          message: 'Please enter a valid date'
       }
    }
 
    isTime() {
-      var regex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      return {
-         valid: regex.test(this.value),
-         message: 'Please enter a valid time'
-      }
+      return this.isDate();
    }
 
    isDateTime() {
-      var regex = /^(?:(?:31(\/|-|\.)(?:0?[13578]|1[02]))\1|(?:(?:29|30)(\/|-|\.)(?:0?[1,3-9]|1[0-2])\2))(?:(?:1[6-9]|[2-9]\d)?\d{2})$|^(?:29(\/|-|\.)0?2\3(?:(?:(?:1[6-9]|[2-9]\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\d|2[0-8])(\/|-|\.)(?:(?:0?[1-9])|(?:1[0-2]))\4(?:(?:1[6-9]|[2-9]\d)?\d{2})$/;
-      return {
-         valid: regex.test(this.value),
-         message: 'Please enter a valid date and time'
-      }
+      return this.isDate();
    }
 
    isPhone() {
@@ -264,7 +290,7 @@ class DataInterface {
    }
 
    __label() {
-      return typeof this.data.label === 'object' ? this.data.label.val() : this.data.label;
+      return this.data.label;
    }
 }
 
@@ -272,9 +298,17 @@ export const data_interface = (element) => {
    return new DataInterface(element);
 }
 
+global.ELEMENT_DEFINITION = function (element, or=null) {
+   return (elements_dict[element] || elements_dict[or]) || new Error('Element ' + element + ' not found');
+}
+
 export const GlobalEnvironment = () => {
    //global.element_definition = element_definition;
 
+
+   global.fieldIsWritable = (field) => {
+      return elements_dict[field.element]?.is_writable;
+   }
    global.VALIDATION_ERROR = {code: 400, title: 'Validation error'};
    global.NOT_FOUND_ERROR = {code: 404, title: 'Not found'};
    global.INTERNAL_SERVER_ERROR = {code: 500, title: 'Internal server error'};

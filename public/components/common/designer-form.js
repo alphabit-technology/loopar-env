@@ -1,8 +1,8 @@
-import {div, h5} from "../components/elements.js";
-import Div from "../components/elements/div.js";
-import {DesignElement} from "../components/design-elements.js";
+import {div, h5} from "/components/elements.js";
+import Div from "../elements/div.js";
+import {DesignElement} from "../design-elements.js";
 import {elements_definition} from "/element-definition.js";
-import {Capitalize} from "/utils/helper.js";
+import {Capitalize} from "/tools/helper.js";
 
 export class DesignerFormClass extends Div {
    constructor(props) {

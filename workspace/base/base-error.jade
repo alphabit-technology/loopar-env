@@ -1,4 +1,4 @@
-extends ../base/desk
+extends base-document
 
 block content
     .empty-state
@@ -12,5 +12,6 @@ block content
                 block message
                     | #{message}
             .state-action
-                a.btn.btn-lg.btn-light(href="/")
-                    i.fa.fa-angle-right Go Back
+                a.btn.btn-lg.btn-light(href="/desk")
+                    i.fa.fa-angle-right.pr-2
+                    span Home

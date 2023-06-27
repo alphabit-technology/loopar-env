@@ -1,16 +1,28 @@
-import {Div} from "/components/elements/div.js";
+import Component from "../base/component.js";
+import {div} from "/components/elements.js";
 
-export class Col extends Div {
+export default class Col extends Component {
+   className = "col";
+   block_component= true;
    constructor(props) {
-      super(props, false);
-
-      this.make();
+      super(props);
    }
 
-   make() {
-      super.make();
+   render(content = null) {
+      return super.render([
+         this.props.children,
+         content,
+         ...this.elements
+      ]);
+   }
 
-      this.add_class("col");
+   componentDidMount(){
+      super.componentDidMount()
+
+      const data = this.data || {};
+      const {size="md", col=6} = data;
+      this.props.designer && this.addClass("element draggable");
+      this.addClass(`col-${col*2} col-${size}-${col}`);
    }
 }
 

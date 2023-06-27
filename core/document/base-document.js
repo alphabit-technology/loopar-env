@@ -28,15 +28,63 @@ export default class BaseDocument extends CoreDocument {
       return labels.length === 0 ? ['Name'] : labels;
    }
 
+   /**
+    * Build condition to get list
+    * @param q
+    * {
+    *    name: "Document",
+    *    module: "Core",
+    *    is_single: 1,
+    *    is_static: 0,
+    * }
+    * @returns
+    * {
+    *    '=': {name: "Document"},
+    *    AND: {
+    *       '=': {module: "Core"
+    *       AND: {
+    *          '=': {is_single: 1},
+    *          AND: {
+    *             '=': {is_static: 0},
+    *          }
+    *       }
+    *    },
+    * }
+    */
    build_condition(q = null) {
-      return Object.values(this.fields).filter(field => {
-         return field.name !== '__DOCTYPE__' && typeof field.value != "undefined" && field.value != null;
-      }).map(field => {
-         const operator = field.element === SELECT ? "=" : "LIKE";
+      if (q === null) return {};
 
-         return {[operator]: {[field.name]: field.value}};
-      }).reduce((acc, cur) => {
-         acc.AND = cur;
+      return Object.entries(q).reduce((acc, [key, value], index) => {
+         const field = this.fields[key];
+         if (!field) return acc;
+
+         const operand = [SELECT,SWITCH,CHECKBOX].includes(field.element) ? '=' : 'LIKE';
+
+         const set_condition = (where) => {
+            if (value && value.length > 0) {
+               if([SWITCH, CHECKBOX].includes(field.element)){
+                  if([1, '1'].includes(value)) where[operand] = {[key]: value}
+               }else {
+                  where[operand] = {[key]: value};
+               }
+            }
+         }
+
+         if (index === 0) {
+            set_condition(acc);
+            if (Object.keys(q).length > 1) acc['AND'] = {};
+
+            return acc;
+         }
+
+         let current = acc['AND'];
+         while (Object.keys(current).length > 0) {
+            current = current['AND'];
+         }
+
+         set_condition(current);
+
+         if (index < Object.keys(q).length - 1) current['AND'] = {};
 
          return acc;
       }, {});
@@ -44,15 +92,13 @@ export default class BaseDocument extends CoreDocument {
 
    async get_list({fields = null, filters = {}, q = null} = {}) {
       this.pagination = {
-         page: current_controller.page || 1,
+         page: loopar.session.get(current_controller.document + "_page") || 1,
          page_size: 10,
          total_pages: 4,
          total_records: 1,
          sort_by: "id",
          sort_order: "asc"
       };
-
-      loopar.db.pagination = this.pagination;
 
       const list_fields = fields || this.get_field_list_names();
       //TODO: add filters on document is virtual deleted
@@ -62,17 +108,25 @@ export default class BaseDocument extends CoreDocument {
          list_fields.push('is_single');
       }
 
-      const rows = await loopar.db.get_list(this.__DOCTYPE__.name, list_fields, {...this.build_condition(q), ...filters, ...filter_if_is_deleted});
+      const condition = this.build_condition(q);
+      this.pagination.total_records = await this.records(condition);
 
-      this.pagination.total_records = await this.records();
       this.pagination.total_pages = Math.ceil(this.pagination.total_records / this.pagination.page_size);
+      loopar.db.pagination = this.pagination;
 
-      return Object.assign(this.__data__, {
+      const rows = await loopar.db.get_list(this.__DOCTYPE__.name, list_fields, {...condition, ...filters, ...filter_if_is_deleted});
+
+      if(rows.length === 0 && this.pagination.page > 1){
+         await loopar.session.set(this.__DOCTYPE__.name + "_page", 1);
+         return await this.get_list({fields, filters, q});
+      }
+
+      return Object.assign(await this.__data__(), {
          labels: this.get_field_list_labels(),
          fields: list_fields,
          rows: rows,
-         pagination: this.pagination
-
+         pagination: this.pagination,
+         q
       });
    }
 
@@ -113,7 +167,7 @@ export default class BaseDocument extends CoreDocument {
       });
    }
 
-   async records() {
-      return await loopar.db._count(this.__DOCTYPE__.name);
+   async records(condition = null) {
+      return await loopar.db._count(this.__DOCTYPE__.name, {}, condition);
    }
 }

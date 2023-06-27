@@ -1,30 +1,37 @@
 import {HTML} from "/components/base/html.js";
-import {icon} from "/components/elements/icon.js";
-import {DragAndDropUtils} from "/utils/drag-and-drop.js";
-import {humanize} from "/utils/helper.js";
-import {element_definition, elements_names} from "/element-definition.js";
-import {elements} from "/components/elements.js";
+import {DragAndDropUtils} from "/tools/drag-and-drop.js";
+import {humanize} from "/tools/helper.js";
+import {a, i} from "/components/elements.js";
+import {element_manage} from "./element-manage.js";
 
-export class DesignElement {
-   #obj = null;
+export class DesignElementClass extends HTML {
    #toElement = null;
+   tag_name = "div";
 
-   constructor(options) {
-      Object.assign(this, options);
-
-      if (this.#toElement) {
-         return this[this.#toElement].on("dragstart", (obj, event) => {
-            event.stopPropagation();
-
-            DragAndDropUtils.elementToCreate = this.elementToCreate;
-         }).on("dragend", () => {
-            DragAndDropUtils.elementToCreate = null;
-         });
-      }
+   className = "btn-app-container";
+   constructor(props) {
+      super(props);
    }
 
-   get obj() {
-      return this.#obj
+   render() {
+      const element = this.props.element;
+
+      return super.render([
+         a({
+            className: "btn btn-app",
+            draggable: true,
+            onDragStart: (event) => {
+               event.stopPropagation();
+               DragAndDropUtils.elementToCreate = this.elementToCreate;
+            },
+            onDragEnd: () => {
+               DragAndDropUtils.elementToCreate = null;
+            }
+         }, [
+            i({className: element.icon}),
+            humanize(element.element)
+         ])
+      ])
    }
 
    set toElement(element) {
@@ -32,48 +39,26 @@ export class DesignElement {
    }
 
    get toElement() {
-      return this.#toElement
+     return this.props.element.element;
    }
 
    get elementToCreate() {/*Return element to set in drag*/
-      const el = elements({
-         props: {
-            class: "element",
+      const element_name = element_manage.element_name(this.toElement);
+
+      return {
+         element: this.toElement,
+         data: {
+            name: element_name.name,
+            id: element_name.id,
+            label: element_name.label,
          },
+         key: element_name.id,
          designer: true,
          has_title: true,
-         title: this.#toElement,
-         element: this.#toElement
-      })[this.#toElement]();
-
-      element_definition[el.element].props.forEach((prop) => {
-         el[prop]();
-      });
-
-      return el;
-   }
-
-   get html() {
-      return this.#obj.html();
+      }
    }
 }
 
-elements_names.forEach(element => {
-   Object.defineProperties(DesignElement.prototype, {
-      [element]: {
-         get: function () {
-            return new HTML({
-               element: element,
-               wrapper: this.wrapper,
-               props: {
-                  class: "btn btn-app"
-               },
-               content: [
-                  icon()[element](),
-                  humanize(element)
-               ]
-            }).tag("a").draggable();
-         }
-      }
-   });
-});
+export const DesignElement = (props={}, content=[]) => {
+   return React.createElement(DesignElementClass, props, content);
+}

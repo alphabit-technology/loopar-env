@@ -1,30 +1,71 @@
-import {DeskSidebar} from "/plugins/desk-sidebar.js"
-import TopBar from "/src/components/top-bar.js";
-import {div, aside, nav, main, header} from "/components/elements.js";
-import {http} from "./utils/http.js";
-import BaseInterface from "./base-interface.js";
+import {DeskSidebar} from "../../components/layout/desk-sidebar.js"
+import {TopBar} from "../../components/layout/top-bar.js";
+import {div, aside, nav, main, header, button, span, image, a} from "../../components/elements.js";
+import {http} from "/router/http.js";
+import BaseWorkspace from "./base/base-workspace.js";
+import {fileManager} from "../../components/tools/file-manager.js";
 
-export default class DeskInterface extends BaseInterface {
+export default class DeskWorkspace extends BaseWorkspace {
    constructor(props){
       super(props);
    }
 
+   resize(){
+      super.resize();
+      this.bodyToggleMenu();
+   }
+
    render(){
-      const data = this.data;
+      const {menu, collapse_menu, mobile_menu_user, width} = this.state;
+      const user = this.meta.user;
+      const profile_image = fileManager.getImage(user, "profile_picture", "profile.png");
 
-      const header_wrapper = header({className: 'app-header app-header-dark'}, [
-         div({className: 'top-bar'}, [
-            React.createElement(TopBar, {user: data.user, refresh: this.refresh.bind(this)})
-         ])
-      ]);
-
-      const sidebar =
-         aside({className: 'app-aside app-aside-expand-md app-aside-light'}, [
+      return super.render([
+         header({className: 'app-header app-header-dark'}, [
+            TopBar({user: user, refresh: this.refresh.bind(this), width})
+         ]),
+         aside({className: `app-aside app-aside-expand-md app-aside-light ${menu ? 'show' : ''}`, id:"aside"}, [
             div({className: 'aside-content'}, [
-               div({className: 'aside-menu overflow-hidden'}, [
-                  nav({className: 'stacked-menu stacked-menu', id: "stacked-menu"}, [
+               header({className: "aside-header b-block d-md-none"}, [
+                  button({className: "btn-account", onClick: () => this.setState({mobile_menu_user: !mobile_menu_user})}, [
+                     span({className: "user-avatar user-avatar-lg"}, [
+                        image({ src: profile_image, alt: "Profile Picture" })
+                     ]),
+                     span({className: "account-icon"}, [
+                        span({className: "fa fa-caret-down fa-lg"})
+                     ]),
+                     span({className: "account-summary"}, [
+                        span({className: "account-name"}, [
+                           user.name
+                        ]),
+                        span({className: "account-description"}, [
+                           user.role
+                        ])
+                     ])
+                  ]),
+                  div({id: "dropdown-aside", className: `dropdown-aside collapse ${mobile_menu_user ? "show": ""}`, style: {}}, [
+                     div({className: "pb-3"}, [
+                        a({className: "dropdown-item", href: "/auth/user/profile"}, [
+                           span({className: "dropdown-icon oi oi-person"}),
+                           "Profile"
+                        ]),
+                        a({className: "dropdown-item", href: "/auth/user/logout"}, [
+                           span({className: "dropdown-icon oi oi-account-logout"}),
+                           "Logout"
+                        ]),
+                        /*div({className: "dropdown-divider"}),
+                        a({className: "dropdown-item", href: "#"}, "Help Center"),
+                        a({className: "dropdown-item", href: "#"}, "Ask Forum"),
+                        a({className: "dropdown-item", href: "#"}, "Keyboard Shortcuts"),*/
+                     ])
+                  ])
+               ]),
+               div({className: 'aside-menu overflow-hidden ps'}, [
+                  nav({
+                     className: `stacked-menu ${collapse_menu ? "stacked-menu-has-compact stacked-menu-has-hoverable" : "stacked-menu-has-collapsible"}`,
+                  }, [
                      DeskSidebar({
-                        data: data,
+                        meta: this.props.meta,
                         ref: sidebar => this.sidebar = sidebar,
                      })
                   ])
@@ -43,36 +84,53 @@ export default class DeskInterface extends BaseInterface {
                   ])
                ])*/
             ])
-         ]);
-
-      const container = main({className: 'app-main'}, [
-         div({className: 'wrapper'}, [
-            ...this.state.children
-         ])
+         ]),
+         main({className: 'app-main'}, [
+            div({className: 'wrapper'}, [
+               super.documents,
+               //...this.props.children
+            ])
+         ]),
+         div({className: `aside-backdrop ${this.state.show_backdrop ? 'show' : ''}`, style: {display: this.state.show_backdrop ? 'block' : 'none'}, onClick: () => {
+            this.toggleMenu();
+         }})
       ]);
+   }
 
-      const dialogs = this.dialogs;
+   toggleMenu(){
+      const menu = this.state.menu;
+      this.setState({menu: !menu, show_backdrop: !menu, collapse_menu: false});
+   }
 
-      return [
-         dialogs,
-         div({className: "toast-bottom-left", id: "toast-container", style: {position: "fixed", bottom: "0px", left: "0px", right: "0px", zIndex: 999999}},
-            this.notifies,
-         ),
-         header_wrapper,
-         sidebar,
-         container,
-         this.state.open_dialogs > 0 ? div({className: "modal-backdrop fade show"}) : null
-      ];
+   bodyToggleMenu(){
+      const has_compact_menu = window.innerWidth > 768;
+      document.getElementById("app-root")?.classList[this.state.collapse_menu && has_compact_menu ? "add" : "remove"]("has-compact-menu");
+   }
+
+   collapseMenu(){
+      const collapse_menu = !this.state.collapse_menu;
+      this.setState({menu: false, show_backdrop: false,  collapse_menu: collapse_menu});
+      localStorage.setItem("collapse_menu", collapse_menu);
+   }
+
+   componentDidUpdate(){
+      super.componentDidUpdate();
+      this.bodyToggleMenu();
+   }
+
+   componentDidMount(){
+      super.componentDidMount();
+      this.bodyToggleMenu();
    }
 
    async refresh(){
       return new Promise(resolve => {
          http.send({
-            action: "/core/desk/sidebar",
+            action: "/api/desk/sidebar",
             params: {},
             success: r => {
-               console.log(["refresh", r]);
-               this.sidebar.setState({data: {menu_data: r.content.sidebarData}});
+               this.state.meta.menu_data = r.meta.sidebarData;
+               //this.setState({meta: this.state.meta});
                resolve(r);
             }
          });

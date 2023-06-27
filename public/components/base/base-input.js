@@ -1,60 +1,130 @@
-import {Div} from "/components/elements/div.js";
-import {elements} from "/components/elements.js";
-import {data_interface} from "/element-definition.js";
-import {element_manage} from "/components/element-manage.js";
-
+import Div from "/components/elements/div.js";
+import { elements } from "/components/elements.js";
+import { data_interface } from "/element-definition.js";
+import { label } from "/components/elements.js";
+import { Capitalize, value_is_true } from "../../tools/helper.js";
+import { element_manage } from "../element-manage.js";
 
 export class BaseInput extends Div {
    input_tag_name = 'input';
    input_type = 'text';
    autocomplete = 'off';
    group_element = INPUT;
+   is_writable = true;
+   droppable = false;
+   names = null;
 
    constructor(props) {
-      super(props, false);
+      super(props);
+      this.handleInputChange = this.handleInputChange.bind(this);
+
+      this.state = {
+         ...this.state,
+         withoutLabel: props.withoutLabel,
+         simpleInput: props.simpleInput,
+         size: props.size,
+         focus: props.focus,
+         meta: props.meta,
+         is_invalid: false,
+      }
    }
 
-   make() {
-      super.make();
+   componentDidMount() {
+      super.componentDidMount();
+      if (this.state.simpleInput !== true) this.addClass('form-group');
+      if (this.data.hidden && !this.props.designer) this.hide();
+      if (this.state.focus) this.focus();
 
-      const element_name = element_manage.element_name(this.element);
-
-      this.data.id = element_name.id;
-      this.data.label = this.data.label || element_name.label;
-
-      const components = [
-         elements({
-            props: {
-               for: this.data.id
-            },
-            content: (this.without_label ? "" : this.data.label),
-         }).tag('label'),
-         elements({
-            props: {
-               name: this.data.name,
-               id: this.data.id,
-               type: this.input_type,
-               autocomplete: this.autocomplete,
-            },
-         }).tag(this.input_tag_name)
-      ];
-      this.label = components.at(0);
-      this.input = components.at(1);
-
-      if(this.input_type === CHECKBOX) components.reverse();
-
-      components.forEach(component => this.append(component));
-
-      this.is_writeable = true;
-      this.bin_events();
+      if (this.state.withoutLabel && this.label && this.label.node && ![CHECKBOX, SWITCH].includes(this.props.element)) this.label.node.style.setProperty("display", "none", "important");
    }
 
-   bin_events() {
-      this.on("change", () => {
+   componentDidUpdate(prevProps, prevState, snapshot) {
+      super.componentDidUpdate(prevProps, prevState, snapshot);
+      if (prevProps.meta !== this.props.meta) {
+         this.setState({
+            meta: this.props.meta
+         });
+      }
+
+      if (this.state.withoutLabel && this.label && this.label.node && ![CHECKBOX, SWITCH].includes(this.props.element)) this.label.node.style.setProperty("display", "none", "important");
+   }
+
+   handleInputChange(event) {
+      const value = event.target.value;
+      try {
+         const data = this.data;
+         data.value = value;
+         this.state.meta.data = data;
+         this.setState({ meta: this.state.meta });
+
+         this.props.onChange && this.props.onChange(event);
+         this.onChange && this.onChange(event);
          this.validate();
-      });
+      } catch (e) {
+         console.log("Error on handleInputChange", e)
+      }
+   }
 
-      this.filter_value();
+   get meta() {
+      return this.state.meta;
+   }
+
+   get data() {
+      this.names ??= element_manage.element_name(this.props.element);
+      const data = this.meta.data || {};
+
+      //data.id ??= names.id;
+      data.id = this.names.id;
+      data.name ??= this.names.name;
+      data.label ??= Capitalize(data.name.replaceAll('_', ' '));
+
+      return data;
+   }
+
+   get_structure() {
+      const data = this.data
+      const inputClass = `form-control${data.size ? ` form-control-${data.size}` : ''}${this.state.is_invalid ? ' is-invalid' : ''}`;
+
+      return [
+         label({
+            key: data.id + '_label',
+            ref: label => this.label = label,
+            className: `col-form-label ${data.class || ''} text-left ${data.size ? `col-form-label-${data.size}` : ''}`,
+            htmlFor: data.id,
+            style: { padding: 2 }
+         }, data.label),
+         elements({
+            key: data.id,
+            ref: input => this.input = input,
+            value: (this.input_type === "file" ? [] : data.value),
+            type: [CHECKBOX, SWITCH, PASSWORD].includes(this.props.element) ? this.input_type : (data.format || this.input_type),
+            name: data.name || data.id,
+            autoComplete: this.autocomplete,
+            className: inputClass + ` ${this.visible_input === false ? 'd-none' : ''}`,
+            id: data.id,
+            placeholder: data.placeholder || data.label,
+            onChange: (e) => {
+               this.handleInputChange(e);
+            },
+            ...([CHECKBOX, SWITCH].includes(this.input_type) ? { checked: value_is_true(data.value) } : {}),
+            ...(this.input_tag_name === "textarea" ? { rows: data.rows || 5 } : {}),
+            ...(this.input_type === "file" ? { multiple: this.state.multiple, accept: this.state.accept } : {}),
+         }).tag(this.input_tag_name)
+      ]
+   }
+
+   render(content = []) {
+      const structure = this.get_structure();
+      const meta = this.meta;
+
+      return super.render([
+         ...([SWITCH, CHECKBOX].includes(this.props.element) ? structure.reverse() : structure),
+         ...content
+      ]);
+   }
+
+   focus() {
+      this.input?.node?.focus();
    }
 
    disable(on_disable = true) {
@@ -69,8 +139,12 @@ export class BaseInput extends Div {
       this.input.prop('disabled', true);
    }
 
-   val(val = null, {event_change = true, focus = false} = {}) {
-      return this.input.val(val, {event_change, focus});
+   val(val = null, { event_change = true, focus = false } = {}) {
+      if (val === null) {
+         return this.input ? this.data.value : null;
+      } else {
+         this.handleInputChange({ target: { value: val } });
+      }
    }
 
    get #datatype() {
@@ -79,64 +153,25 @@ export class BaseInput extends Div {
       return type;
    }
 
+   getName() {
+      return this.data.name;
+   }
+
    validate() {
       const validation = data_interface(this).validate();
-
-      if (!validation.valid) {
-         this.invalid_status();
-      } else {
-         this.valid_status();
-      }
-
+      this.setState({ is_invalid: !validation.valid });
       return validation;
    }
 
-   invalid_status() {
-      this.input.add_class('is-invalid');
-   }
-
-   valid_status() {
-      this.input.remove_class('is-invalid');
-   }
-
-   #is_valid_value(value) {
-      if (["Int", "Long Int"].includes(this.data.format)) {
-         return /^-?\d*[]?\d*$/.test(value);
-      }
-      if (["Currency", "Float", "Percent"].includes(this.data.format)) {
-         return /^-?\d*[.,]?\d*$/.test(value);
-      }
-
-      if ([DATE].includes(this.element)) {
-         return /^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/.test(value);
-      }
-
-      return true;
-   }
-
-   filter_value() {
-      const self = this;
-      ["input", "keydown", "keyup", "mousedown", "mouseup", "select", "contextmenu", "drop"].forEach((event) => {
-         this.input.obj.addEventListener(event, function () {
-            if (self.#is_valid_value(this.value)) {
-               this.oldValue = this.value;
-               this.oldSelectionStart = this.selectionStart;
-               this.oldSelectionEnd = this.selectionEnd;
-            } else if (this.hasOwnProperty("oldValue")) {
-               this.value = this.oldValue;
-               this.setSelectionRange(this.oldSelectionStart, this.oldSelectionEnd);
-            } else {
-               this.value = "";
-            }
-         });
-      });
-   }
-
-   set_size(size='md') {
-      this.input.remove_class(`form-control-${this.data.size}`).add_class(`form-control-${size}`);
-      this.label.remove_class(`col-form-label-${this.data.size}`).add_class(`col-form-label-${size}`);
+   set_size(size = 'md') {
+      this.input.removeClass(`form-control-${this.data.size}`).addClass(`form-control-${size}`);
+      this.label.removeClass(`col-form-label-${this.data.size}`).addClass(`col-form-label-${size}`);
       this.data.size = size;
 
       return this;
    }
+
+   /*focus() {
+      this.input?.focus();
+   }*/
 }

@@ -1,89 +1,55 @@
-import {a, h6, i, span} from "../elements.js";
-import Div from "./div.js";
-import {div} from "../elements.js";
+import { div } from "../elements.js";
+import Component from "../base/component.js";
 
-export default class Card extends Div {
-   droppable = false;
+
+export default class Section extends Component {
    block_component = true;
+   className = "section position-relative py-5 bg-light";
 
    constructor(props) {
       super(props);
    }
 
+   getSrc(){
+      const designer = this.props.designer;
+      const background = this.props.meta.data.background_image;
+      const background_image = Array.isArray(background) ? background[0] : background;// //fileManager.get(background);
+      const src = typeof background_image === 'object' ? background_image.src : background_image;
+      return this.props.src || src
+   }
+
    render(content = null) {
-      this.make_components();
+      const data = this.props.meta.data || {};
+
+      if(data.background_image) {
+         this.style = {
+            backgroundImage: `url(${this.getSrc() || ""}`,
+            backgroundSize: data.background_size || "cover",
+            backgroundPosition: data.background_position || "center",
+            backgroundRepeat: data.background_repeat || "no-repeat",
+         }
+      }
 
       return super.render([
-         this.header,
-         div({
-            component: this,
-            //parent: this,
-            sub_element: true,
-            className: "sub-element card-body collapse show" + (this.props.bodyClassName ? " " + this.props.bodyClassName : ""),
-            ref: el =>  this.container = el
-         }, [
-            content || this.last_state().children,
-            ...this.elements
+         /*div({
+               className: "element container position-relative",
+               ref: self => this.container = self,
+               component: this
+            }, [
+               content || this.last_state().children,
+               ...this.elements
+         ])*/
+         div({className: "container position-relative"}, [
+            div({
+               className: "element row align-items-center justify-content-between",
+               ref: self => this.container = self,
+               Component: this
+            }, [
+               this.props.children,
+               content,
+               ...this.elements
+            ])
          ])
       ]);
    }
-
-   make_components() {
-      this.header = div({className: 'card-header'},
-         h6(
-            a({
-               className: "btn btn-reset",
-               onClick: () => {
-                  this.toggle_hide();
-               }
-            }, [
-               span({
-                     ref: el => this.title = el,
-                     className: 'mr-2'
-                  },
-                  this.data.label
-               ),
-               span({className: 'collapse-icon mr-2'},
-                  i({
-                     ref: el => this.collapse_icon = el,
-                     className: 'fas fa-chevron-up',
-                     onClick: () => {
-                        this.toggle_hide();
-                     }
-                  })
-               )
-            ])
-         )
-      );
-   }
-
-   make() {
-      super.make()
-      if(this.options.designer){
-         this.add_class("designer");
-         this.add_class("draggable");
-
-         this.container.add_class("sub-element droppable");
-
-         this.container.droppable_actions();
-      }
-
-      this.add_class("card card-fluid");
-   }
-
-   toggle_hide(hide = null) {
-      this.is_hide = hide !== null ? hide : !this.is_hide;
-      if (this.is_hide) {
-         this.container.hide();
-         this.collapse_icon.replace_class("fa-chevron-up", "fa-chevron-down");
-      } else {
-         this.container.show();
-         this.collapse_icon.replace_class("fa-chevron-down", "fa-chevron-up");
-
-      }
-   }
-}
-
-export const card = (options) => {
-   return new Card(options);
 }

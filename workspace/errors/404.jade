@@ -1,6 +1,8 @@
-extends base-error
+extends ../base/base-error
 
 block title
-    | #{title}
-block message
-    | #{message}
+    h1.state-header.display-1.font-weight-bold
+        span 4
+        i.far.fa-frown.text-red
+        span 4
+    #{message}

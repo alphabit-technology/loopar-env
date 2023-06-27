@@ -1,25 +1,45 @@
-import {object_manage} from "/utils/object-manage.js";
-import {elements} from "/components/elements.js";
-import {HTML} from "/components/base/html.js";
+import Div from "/components/elements/div.js";
 
 const buttons = {
-   link: "btn btn-link",
-   info: "btn btn-info",
-   default: "btn btn-default",
-   primary: "btn btn-primary",
-   secondary: "btn btn-secondary",
-   success: "btn btn-success"
+   link: "link",
+   info: "info",
+   default: "default",
+   primary: "primary",
+   secondary: "secondary",
+   success: "success"
 }
 
-export class Button extends HTML {
-   constructor(options) {
-      super(options);
+export default class Button extends Div {
+   className = "btn";
+   constructor(props) {
+      if(!props.designer){
+         props.tag_name = "button";
+      }
 
-      this.make();
-      return this.set_type(this.data.type);
+      super(props);
    }
 
-   make() {
+   render() {
+      const data = this.data;
+
+      /***create function to Replace all classes that start with btn-***/
+      if(this.className){
+         this.className = this.className.replace(/btn-[^ ]*/, "");
+      }
+
+      this.className += ` ${data.class || ''} btn btn-${buttons[data.type || 'primary']} ${data.size ? `btn-${data.size}` : ''}`;
+
+      return super.render(data.label || "Button");
+   }
+
+   /*make() {
+      super.make();
+      const data = this.data;
+
+      this.addClass(`${data.class || ''} btn ${buttons[data.type || 'primary']} ${data.size ? `btn-${data.size}` : ''}`);
+   }*/
+
+   /*make() {
       const label = this.content ? this.content.label || null : null;
       this.data.label = this.data.label || "Button";
 
@@ -38,21 +58,21 @@ export class Button extends HTML {
          super.tag('a');
       }
 
-      this.add_class('btn');
-   }
+      this.addClass('btn');
+   }*/
 
    set_type(type='default') {
-      this.remove_class(`btn-${this.data.type}`).add_class(`btn-${type}`);
+      /*this.removeClass(`btn-${this.data.type}`).addClass(`btn-${type}`);
       this.data.type = type;
 
-      return this;
+      return this;*/
    }
 
    set_size(size='md') {
-      this.remove_class(`btn-${this.data.size}`).add_class(`btn-${size}`);
+      /*this.removeClass(`btn-${this.data.size}`).addClass(`btn-${size}`);
       this.data.size = size;
 
-      return this;
+      return this;*/
    }
 }
 
@@ -65,9 +85,3 @@ Object.keys(buttons).forEach(button => {
       }
    });
 });
-
-export const button = (options) => {
-   options.data = options.data || {};
-
-   return new Button(options);
-}

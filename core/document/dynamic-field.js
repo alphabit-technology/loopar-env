@@ -1,5 +1,6 @@
 'use strict'
-import {data_interface, element_definition} from '../global/element-definition.js';
+import {data_interface} from '../global/element-definition.js';
+import {value_is_true} from "../../public/tools/helper.js";
 
 export default class DynamicField {
    #value = null;
@@ -9,31 +10,15 @@ export default class DynamicField {
       this.value = value;
    }
 
-   #data_type(type) {
-      return element_definition[type] || element_definition[INPUT];
-   }
-
-   get #datatype() {
-      return (this.element === INPUT ? (this.format || this.element) : this.element).toLowerCase();
-   }
-
-   debug_text(text) {
-      return (text || "").toString().replace(/ /g, "");
-   }
-
    #make(props) {
       const data = props.data || {};
       delete props.data;
 
-      Object.assign(this, data, props);
+      Object.assign(this, data, props, );
    }
 
    set value(value) {
       this.#value = value;
-   }
-
-   get raw_value() {
-      return this.#value;
    }
 
    get is_parsed() {
@@ -41,44 +26,49 @@ export default class DynamicField {
    }
 
    get value() {
-      return this.is_parsed ? this.#parse() : this.#value;
+      const value = this.is_parsed ? this.#parse() : this.#value;
+
+      if([CHECKBOX, SWITCH].includes(this.element)){
+         return value_is_true(value) ? 1 : 0;
+      }
+
+      return value == null || typeof value == "undefined" ? "" : value;
    }
 
    get stringify_value() {
-      return typeof this.#value == 'object' ? JSON.stringify(this.#value) : this.#value;
-   }
+      const value = this.#value;
+      if([DATE, TIME, DATE_TIME].includes(this.element)){
+         if(value == null || typeof value == "undefined" || value === "" || value === "Invalid Date")
+            return null;
 
-   get parse_value() {
-      return this.is_parsed ? this.#parse() : this.#value;
+         return dayjs(value).format(this.format);
+      }
+
+      if(this.element === FORM_TABLE){
+         return JSON.parse(value);
+      }
+
+      /*if(this.element === FILE){
+         console.log('FILE:', value, typeof value);
+         if(!value && typeof value == "object"){
+           
+            return value.name
+         }
+      }*/
+
+      return typeof value == 'object' ? JSON.stringify(value) : value;
    }
 
    #parse() {
       return this.if_json() ? JSON.parse(this.#value) : this.#value;
    }
 
-   get valueToString() {
-      return this.#value == null || typeof this.#value == "undefined" ? "" : (this.is_parsed ? this.#value : this.#value.toString());
-   }
-
    get formatted_value() {
-      /*if(this.#datatype === "date"){
-          return DATE_FORMATTER(new Date(), "yyyy-mm-dd HH:MM:ss");
-      }*/
       return this.#value;
    }
 
    validate() {
-      const validation = () => {
-         const valid = data_interface(this).validate();
-
-         if (!valid.valid) {
-            return {error: `<strong><i class="fa fa-solid fa-angle-right mr-1" style="color: var(--red);"></i><strong>${valid.message}</strong>`};
-         }
-
-         return true;
-      }
-
-      return validation();
+      return data_interface(this).validate();
    }
 
    if_json() {

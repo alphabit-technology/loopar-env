@@ -33,44 +33,58 @@ class HTTP {
    }
 
    get options() {
-      return {
+      const options = {
          method: this.method, // *GET, POST, PUT, DELETE, etc.
          mode: 'same-origin', // no-cors, *cors, same-origin
          cache: 'default', // *default, no-cache, reload, force-cache, only-if-cached
          credentials: 'include', // include, *same-origin, omit
-         headers: {
-            'Content-Type': 'application/json',
+         /*headers: {
+            //'Content-Type': 'application/json',
             //'x-xsrf-token':  "someCsrfToken",
-            // 'Content-Type': 'application/x-www-form-urlencoded',
-         },
+            //'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'multipart/form-data',
+         },*/
          redirect: 'follow', // manual, *follow, error
          referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
-         body: JSON.stringify(this.body), // body data type must match "Content-Type" header),
+         body: this.body, // body data type must match "Content-Type" header),
       };
+
+      if (!(this.body instanceof FormData)){
+         options.headers = {
+            'Content-Type': 'application/json',
+         };
+
+         options.body = JSON.stringify(this.body);
+      }
+
+      return options;
    }
 
    #send_petition(options) {
       const self = this;
       options.freeze && loopar.freeze(true);
-
       fetch(self.url, self.options).then(async response => {
-         if (response.redirected) {
-            window.location.href = response.url;
-            return;
-         }
+         //console.log("response", response)
+         //if(response.ok) {
+            if (response.redirected) {
+               window.location.href = response.url;
+               return;
+            }
 
-         const isJson = response.headers.get('content-type')?.includes('application/json');
-         const data = isJson ? await response.json() : null;
+            const isJson = response.headers.get('content-type')?.includes('application/json');
+            const data = isJson ? await response.json() : null;
 
-         if (!response.ok) {
-            const error = data || {error: response.status, message: response.statusText};
-            options.error && options.error(error);
-            loopar.throw(error);
-         } else {
-            options.success && options.success(data);
-         }
+            if (!response.ok) {
+               console.log("response error", response)
+               const error = data || {error: response.status, message: response.statusText};
+               throw new Error(error.content || error.message || error);
+            } else {
+               options.success && options.success(data);
+            }
+         //}
       }).catch(error => {
          options.error && options.error(error);
+         //console.log(error)
          loopar.throw({
             title: error.error || 'Undefined Error',
             message: error.message || 'Undefined Error',

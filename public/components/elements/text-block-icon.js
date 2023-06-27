@@ -1,19 +1,27 @@
-import Component from "./component.js";
 import {image, div, h3, p} from "../elements.js";
-export default class TextBlock extends Component {
-   defaultDescription = "This a user-friendly, simple and responsive Text Block.";
+import BaseTextBlock from "../base/base-text-block.js";
+export default class TextBlockIcon extends BaseTextBlock {
+   droppable=false;
+   className="card shadow";
    constructor(props){
       super(props);
    }
 
    render(){
-      const data = this.last_state().data || {};
-      const [label="Text Block", description=this.defaultDescription] =[data.label, data.description];
+      const data = this.props.meta.data || {};
+      const {label="Text Block", description, action} = data;
 
       return super.render([
-         div({className: "col-12 col-md-6 order-md-1 text-center text-sm-left"}, [
-            h3({className: "h3 mb-4"}, label),
-            p({className: "text-muted font-size-lg mb-4"}, description)
+         div({className: "card shadow"}, [
+            div({className: "card-body p-4"}, [
+               div({className: "d-sm-flex align-items-start text-center text-sm-left"}, [
+                  image({src: action, className: "mr-sm-4 mb-3 mb-sm-0", width: "72"}),
+                  div({className: "flex-fill"}, [
+                     h3({className: "mt-0"}, label),
+                     p({className: "text-muted font-size-lg"}, description)
+                  ])
+               ])
+            ])
          ])
       ]);
    }

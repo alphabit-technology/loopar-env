@@ -11,12 +11,11 @@ class DocumentManage {
    async get_document(DOCTYPE, document_name, data = null) {
       const database_data = await loopar.db.get_doc(DOCTYPE.name, document_name, ['*'], DOCTYPE.is_single);
 
-      data = Object.assign(database_data, data || {});
-
-      if (data) {
+      if (database_data) {
+         data = Object.assign(database_data, data || {});
          return await this.new_document(DOCTYPE, data, document_name);
       } else {
-         loopar.throw(`Document ${document_name} not found`);
+         loopar.throw({code: 404, message: `Document ${document_name} not found`});
       }
    }
 
@@ -58,7 +57,7 @@ class DocumentManage {
       const document_name = this.#document_name(doctype.name);
       const module_path = path.join(app_route, "modules", doctype.module);
       const document_path = path.join(module_path, document_name);
-      const document_path_file = path.join(document_path, `${document_name}.js`);
+      const document_path_file = path.join(document_path, `${document_name}.js`).replaceAll(/\s+/g, '-').toLowerCase();
 
       this.document_path_file = await file_manage.exist_file(document_path_file) ?
          this.document_path_file :

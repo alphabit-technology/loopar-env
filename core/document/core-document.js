@@ -1,12 +1,13 @@
 'use strict'
 
 import DynamicField from './dynamic-field.js';
-import {loopar} from '../loopar.js';
+import { loopar } from '../loopar.js';
 
 export default class CoreDocument {
    #fields = {};
    document_type = "Document";
    field_doc_structure = 'doc_structure';
+   protected_password = "********";
 
    constructor(props) {
       Object.assign(this, props);
@@ -23,7 +24,7 @@ export default class CoreDocument {
    }
 
    trigger(event, ...args) {
-      if(this[event] && typeof this[event] === 'function') {
+      if (this[event] && typeof this[event] === 'function') {
          this[event](event, ...args);
       }
    }
@@ -34,7 +35,7 @@ export default class CoreDocument {
       this.__DOCTYPE__.STRUCTURE = JSON.parse(this.__DOCTYPE__[this.field_doc_structure]).filter(field => field.data.name !== ID);
 
       if (this.__DOCUMENT__ && this.__DOCUMENT__[this.field_doc_structure]) {
-         this.__DOCUMENT__[this.field_doc_structure] = JSON.stringify(JSON.parse(this.__DOCUMENT__[this.field_doc_structure]).filter(field => field.data.name !== ID));
+         this.__DOCUMENT__[this.field_doc_structure] = JSON.stringify(JSON.parse(this.__DOCUMENT__[this.field_doc_structure]).filter(field => (field.data || {}).name !== ID));
       }
 
       this.on_load();
@@ -63,7 +64,7 @@ export default class CoreDocument {
 
    #make_fields(fields = this.__DOCTYPE__.STRUCTURE) {
       fields.map(field => {
-         if (field.is_writeable) {
+         if (fieldIsWritable(field)) {
             this.#make_field(field);
          } else if (field.element === "table") {
 
@@ -77,58 +78,107 @@ export default class CoreDocument {
       return !this.name || this.name.length === 0;
    }
 
-   set_unique_name(){
-      if(this.name_is_null() && this.__IS_NEW__ && this.get_name.hidden === 1) {
+   set_unique_name() {
+      if (this.name_is_null() && this.__IS_NEW__ && this.get_name.hidden === 1) {
          this.name = loopar.utils.random_string(10);
       }
    }
 
    async save() {
+      const args = arguments[0] || {};
+      const validate = args.validate || true;
+
       return new Promise(async resolve => {
          this.set_unique_name();
-         await this.validate();
+         if (validate) await this.validate();
 
-         try {
-            if (this.__IS_NEW__ || this.__DOCTYPE__.is_single) {
-               await loopar.db.insert_row(this.__DOCTYPE__.name, this.stringify_values, this.__DOCTYPE__.is_single);
-            } else {
-               const data = this.values_to_set_data_base;
+         const data = this.values_to_set_data_base;
 
-               if (Object.keys(data).length) {
-                  await loopar.db.update_row(
-                     this.__DOCTYPE__.name,
-                     this.values_to_set_data_base,
-                     this.__DOCUMENT_NAME__,
-                     this.__DOCTYPE__.is_single
-                  );
+         if (this.__IS_NEW__ || this.__DOCTYPE__.is_single) {
+            await loopar.db.insert_row(this.__DOCTYPE__.name, this.stringify_values, this.__DOCTYPE__.is_single);
+         } else {
+            if (Object.keys(data).length) {
+               await loopar.db.update_row(
+                  this.__DOCTYPE__.name,
+                  data,
+                  this.__DOCUMENT_NAME__,
+                  this.__DOCTYPE__.is_single
+               );
+
+               const update_child = async () => {
+                  const child_values_req = this.child_values_req;
+
+                  if (Object.keys(child_values_req).length) {
+                     for (const [key, value] of Object.entries(child_values_req)) {
+                        await loopar.db.execute(`DELETE FROM \`tbl${key}\` WHERE document_parent = '${this.__DOCTYPE__.name}' AND document_parent_name = '${this.__DOCUMENT_NAME__}'`)
+
+                        const rows = value;
+
+                        for (const row of rows) {
+                           row.document_parent = this.__DOCTYPE__.name;
+                           row.document_parent_name = this.__DOCUMENT_NAME__;
+
+                           const document = await loopar.new_document(key, row);
+                           await document.save();
+                        }
+                     }
+                  }
                }
-            }
 
-            resolve();
-         } catch (error) {
-            console.log(['save error', error]);
-            loopar.throw(error.sqlMessage);
+               await update_child();
+            }
          }
+
+         resolve();
       });
    }
 
    async validate() {
-      return new Promise(resolve => {
-         const validator = Object.values(this.#fields).filter(field => field.name !== ID).map(field => {
-            const result = field.validate();
+      //return new Promise(resolve => {
+      const errors = Object.values(this.#fields).filter(field => field.name !== ID).map(e => e.validate()).filter(e => !e.valid).map(e => e.message);
+      const select_types = await this.validate_select_types();
+      !loopar.installing && errors.push(...select_types);
 
-            return result.error ? result.error : null;
-         }).filter(v => !!v);
-
-         if (validator.length) {
-            loopar.throw({
-               error_type: VALIDATION_ERROR,
-               message: validator.join('<br>')
-            });
-         } else {
-            resolve();
-         }
+      errors.length > 0 && loopar.throw({
+         error_type: VALIDATION_ERROR,
+         message: errors.join('<br/>')
       });
+      //});
+   }
+
+   async validate_select_types() {
+      const errors = [];
+      for (const field of Object.values(this.#fields)) {
+         if (field.element === SELECT) {
+            const options = (field.options || "").split("\n");
+
+            if (!field.value || field.value === "") continue;
+
+            if (options.length > 1) {
+               if (!options.includes(field.value)) {
+                  errors.push(`The value ${field.value} for ${field.name} can only be one of the list of options`);
+               }
+            } else {
+               const err_for_not_valid_document = `The field ${field.name} does not have a valid document configured, please check the document metadata or contact an Administrator.`;
+
+               if (options[0] === "") {
+                  errors.push(err_for_not_valid_document);
+               } else {
+                  if (await loopar.db.count(options[0]) === 0) {
+                     errors.push(err_for_not_valid_document);
+                  } else {
+                     const link = await loopar.db.count(field.options, field.value);
+
+                     if (link === 0) {
+                        errors.push(`The value ${field.value} for ${field.name} does not exist in ${field.options} Document`);
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      return errors;
    }
 
    async delete() {
@@ -136,7 +186,7 @@ export default class CoreDocument {
          try {
             const result = await loopar.db.delete_row(this.__DOCTYPE__.name, this.__DOCUMENT_NAME__);
 
-            if(this.update_installer && typeof this.update_installer === 'function') {
+            if (this.update_installer && typeof this.update_installer === 'function') {
                await this.update_installer(true);
             }
 
@@ -148,49 +198,102 @@ export default class CoreDocument {
          } catch (error) {
             resolve({
                success: false,
-               errors: [{error: error.message}]
+               errors: [{ error: error.message }]
             });
          }
       });
    }
 
-   get __data__() {
+   async __data__() {
       return {
          __DOCTYPE__: this.__DOCTYPE__,
          __DOCUMENT_NAME__: this.__DOCUMENT_NAME__,
-         __DOCUMENT__: this.values,
+         __DOCUMENT__: await this.values(),
          //__DOCUMENT__: this.__DOCUMENT__,
          __IS_NEW__: this.__IS_NEW__,
       }
    }
 
-   get values() {
-      const value = (field) => {
-         if (field.name === this.field_doc_structure && field.value) {
-            return JSON.stringify(field.value.filter(field => field.data.name !== ID));
-         } else {
+   async values() {
+      const value = async (field) => {
+         if (field.name === this.field_doc_structure) {
+            return field.value ? JSON.stringify(field.value.filter(field => (field.data || []).name !== ID)) : "[]";
+         } else if (field.element === FORM_TABLE) {
+            return await this.get_child_values(field.options);
+         }else if(field.element === PASSWORD){
+            return field.value && field.value.length > 0 ? this.protected_password : "";
+         }else{
             return field.stringify_value;
          }
       }
 
-      return Object.values(this.#fields).reduce((acc, cur) => ({...acc, [cur.name]: value(cur)}), {});
+      return Object.values(this.#fields).reduce(async (acc, cur) => {
+         return { ...await acc, [cur.name]: await value(cur) }
+      }, {});
+   }
+
+   async get_child_values(field) {
+      return await loopar.get_list(field, {
+         filters: {
+            "=": {
+               document_parent: this.__DOCTYPE__.name,
+            },
+            "AND": {
+               "=": {
+                  document_parent_name: this.__DOCUMENT_NAME__
+               }
+            }
+         }
+      })
    }
 
    get stringify_values() {
       return Object.values(this.#fields)
          .filter(field => field.name !== ID)
-         .reduce((acc, cur) => ({...acc, [cur.name]: cur.stringify_value}), {});
+         .reduce((acc, cur) => ({ ...acc, [cur.name]: cur.stringify_value }), {});
    }
 
    get values_to_set_data_base() {
       return Object.values(this.#fields)
-         .filter(field => field.name !== ID && (!this.__IS_NEW__ && !field.set_only_time))
-         .reduce((acc, cur) => ({...acc, [cur.name]: cur.stringify_value}), {});
+         .filter(field => {
+            if(field.name === ID) return false;
+
+            if((this.__IS_NEW__ && field.set_only_time) || field.element === FORM_TABLE) return false;
+
+            if(field.type === PASSWORD){
+               return field.value !== this.protected_password;
+            }
+
+            return true;
+         })
+         .reduce((acc, cur) => ({ ...acc, [cur.name]: cur.stringify_value }), {});
+   }
+
+   get child_values_req() {
+      return Object.values(this.#fields)
+         .filter(field => field.name !== ID && field.element === FORM_TABLE)
+         .reduce((acc, cur) => ({ ...acc, [cur.options]: cur.stringify_value }), {});
    }
 
    get formatted_values() {
       return Object.values(this.#fields)
          .filter(field => field.name !== ID)
-         .reduce((acc, cur) => ({...acc, [cur.name]: cur.formatted_value}), {});
+         .reduce((acc, cur) => ({ ...acc, [cur.name]: cur.formatted_value }), {});
    }
+
+   /*static make_filter(filters) {
+      const filter = (filters || []).map(filter => {
+         const {field, operator, value} = filter;
+
+         return {
+            [field]: {
+               [operator]: value
+            }
+         }
+      });
+
+      return filter.length > 1 ? {
+         "AND": filter
+      } : filter[0];
+   }*/
 }

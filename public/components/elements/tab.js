@@ -1,30 +1,18 @@
 import Component from "../base/component.js";
-import {div} from "/components/elements.js";
 
-export default class Col extends Component {
-   className = "col";
-   block_component= true;
+export default class Tab
+   extends Component {
+   className = "tab-pane fade";
+
    constructor(props) {
       super(props);
    }
 
-   render(content = null) {
-      return super.render([
-            this.last_state().children || this.props.children || content,
-            ...this.elements
-         ]
-      );
+   remove() {
+      this.parent_component.removeTab(this.data.name);
    }
 
-   make(){
-      super.make();
-      const data = this.data || {};
-      const {size="md", col=6} = data;
-      this.props.designer && this.add_class("element draggable");
-      this.add_class(`col-${col*2} col-${size}-${col}`);
+   setData(data){
+      this.parent_component.updateTab(this.data.name, data);
    }
-}
-
-export const col = (options) => {
-   return new Col(options);
 }

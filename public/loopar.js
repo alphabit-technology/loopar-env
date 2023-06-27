@@ -1,105 +1,137 @@
-import {hash} from '/utils/helper.js';
-import {Router} from '/router/router.js';
-import {elements} from '/components/elements.js';
-import {http} from './utils/http.js';
+import Router from '/router/router.js';
 import {UiManage} from "./components/uui.js";
+import { http } from "/router/http.js";
 
 class Loopar extends Router {
-   #route = {};
    ui = new UiManage();
-   http = http;
-
+   current_page_name = "";
+   root_app = null;
+   workspace = WORKSPACE || "";
+   #colors= JSON.parse(localStorage.getItem('colors') || "{}");
+   base_colors = ['pink', 'purple', 'indigo', 'blue', 'cyan', 'teal', 'green', 'orange', 'red']
+   sidebar_option = "preview";
    constructor() {
       super();
-
-      this.#bind_events();
    }
 
-   change() {
-      this.#route = window.location;
-      return this.#load_document();
-   }
+   dialog(dialog) {
+      const content = dialog.content || dialog.message;
+      dialog.id ??= typeof content === "string" ? dialog.content : dialog.title;
+      this.root_app && this.root_app.setDialog(dialog);
 
-   current_page(route = window.location) {
-      if (!this.#route.pathname) this.#route = route;
-
-      const query = this.#route.search ? this.#route.search.split('?') : '';
-      this.#route.query = query[1] || '';
-
-      const id = this.#route.query.split('&').map(q => q.split('=')).filter(q => q[0] === 'document_name').join();
-
-      return hash(this.#route.pathname + id);
-   }
-
-   #bind_events() {
-      window.addEventListener('popstate', (e) => {
-         e.preventDefault();
-
-         this._route();
-         return false;
+      return new Promise(resolve => {
+         setTimeout(() => {
+            resolve(this.root_app.dialogs.dialogs[dialog.id]);
+         }, 0);
       });
    }
 
-   set route(route) {
-      this.set_route(route || "desk");
+   prompt(dialog) {
+      //const content = dialog.content || dialog.message;
+      dialog.id = dialog.title;
+      dialog.open = true;
+      dialog.type = "prompt";
+      this.root_app && this.root_app.setDialog(dialog);
+
+      return new Promise(resolve => {
+         setTimeout(() => {
+            resolve(this.root_app.dialogs.dialogs[dialog.id]);
+         }, 0);
+      });
    }
 
-   async #load_document() {
-      const current_app = this[this.current_page()];
+   confirm(message, callback) {
+      this.dialog({
+         type: "confirm",
+         title: "Confirm",
+         content: message,
+         callback: callback,
+      });
+   }
 
-      if (current_app && !this.reload) {
-         current_app.reload();
-      } else {
-         const data = request_data ? request_data : await this.#get_url_data();
+   alert(message, callback) {
+      this.dialog({
+         type: "alert",
+         title: "Alert",
+         content: message,
+         callback: callback,
+      });
+   }
 
-         import(data.client_importer).then(module => {
-            new module.default(data.content);
-            this.reload = false;
-         });
-      }
+   closeDialog(id) {
+      this.root_app && this.root_app.closeDialog(id);
+   }
+
+   throw(error, m) {
+      const { title, content, message } = typeof error === "object" ? error : { title: error, content: m, message: m };
+      this.dialog({
+         type: "error",
+         title: title,
+         content : content || message,
+         open: true,
+      });
+
+      //setTimeout(() => {
+      throw new Error(error.content || error.message || error);
+      //}, 100);
+   }
+
+   notify(message, type = "success") {
+      this.root_app && this.root_app.setNotify({message, type});
+   }
+
+   toggle_theme() {
+      window.toggle_theme();
+
+      this.root_app && this.root_app.setState({});
+   }
+
+   sidebar(){
+      return true;
    }
 
    initialize() {
       return new Promise(resolve => {
-         document.docReady(() => {
-            this.make_html_elements();
+         document.ready(() => {
             resolve();
          });
       });
    }
 
-   make_html_elements(base = document, context = null) {
-      base.querySelectorAll("[element]").forEach(el => {
-         elements({obj: el, from_html: true, context: context});
-      });
+   emit(event, data) {
+      this.root_app && this.root_app.emit(event, data);
    }
 
-   click_event(e) {
-      let override = (route) => {
-         e.preventDefault();
-         this.set_route(route);
-         return false;
-      };
+   #random_color(name) {
+      const color = this.base_colors[Math.floor(Math.random() *  this.base_colors.length)];
+      const colors = this.colors;
 
-      const href = e.currentTarget.getAttribute('href');
+      colors[name] ??= color;
+      localStorage.setItem('colors', JSON.stringify(colors));
 
-      override(href);
+      return color;
    }
 
-   #get_url_data() {
-      return new Promise((resolve, reject) => {
-         http.send({
-            action: this.#route.pathname,
-            params: this.#route.search,
-            success: r => {
-               resolve(r);
-            },
-            error: r => {
-               reject(r);
-            }
-         });
-      });
+
+   get colors() {
+      const colors = this.#colors;
+      return typeof colors === "object" ? colors : {};
+   }
+
+   bg_color(name) {
+      const colors = this.colors;
+      return colors[name] || this.#random_color(name);
+   }
+
+   freeze(freeze = true) {
+      this.root_app?.freeze(freeze);
+   }
+
+   async method(Document, method, params = {}) {
+      const url = `/desk/method/${Document}/${method}`;
+      return await http.post(url, params, {freeze: false});
    }
 }
 
-export const loopar = new Loopar();
+const loopar = new Loopar();
+export {loopar};

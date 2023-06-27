@@ -1,7 +1,8 @@
 import {HTML} from "/components/base/html.js";
 import {element_title} from "/components/element-manage.js";
+import {h1} from "/components/elements.js";
 
-export default class Div extends HTML {
+export default class Element extends HTML {
    tag_name = "div";
    droppable = true;
    draggable = true;
@@ -12,11 +13,8 @@ export default class Div extends HTML {
    render(content=null) {
       return super.render([
          this.options.has_title ? element_title(this) : null,
-         content || this.last_state().children || this.props.children || []
+         content || this.state.children || this.props.children || [],
+         h1(this.data.description || "Test")
       ]);
    }
-}
-
-export const div = (options) => {
-   return new Div(options)
 }

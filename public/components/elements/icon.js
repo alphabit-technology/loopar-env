@@ -28,7 +28,7 @@ const icons = {
    //[TAG]: "fa solid fa-code",
 }
 
-export class Icon extends HTML {
+export default class Icon extends HTML {
    constructor(options) {
       super(options);
    }

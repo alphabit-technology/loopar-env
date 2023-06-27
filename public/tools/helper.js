@@ -1,4 +1,4 @@
-//import { decamelize } from '/utils/decamelize.js';
+//import { decamelize } from '/tools/decamelize.js';
 const _text = (text) => {
    return text || "Undefined"
 }
@@ -164,6 +164,18 @@ function random_string(length) {
    return 'N'+result;
 }
 
+function avatarLetter(word) {
+   let value = "";
+
+   if (word) {
+      word.split(" ").forEach(word => {
+         value += word[0].toUpperCase();
+      });
+   }
+
+   return value;
+}
+
 export {
    Capitalize,
    UPPERCASE,
@@ -176,5 +188,6 @@ export {
    JSONparse,
    decamelize,
    avatar,
-   random_string
+   random_string,
+   avatarLetter,
 }
