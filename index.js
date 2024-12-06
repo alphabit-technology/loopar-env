@@ -37,26 +37,28 @@ program
         console.log(`Port ${options.port} is available.`);
       }
 
+      const serverConfig = {
+        "port": port,
+        "session": {
+          "secret": "secrctekeyf5d665dd56ff59fbd24699e502a528f77eb786e8",
+          "saveUninitialized": false,
+          "cookie": { "maxAge": 86400000 },
+          "resave": false
+        }
+      };
+      
       // Step 4: Update the configuration file with the selected port (if applicable)
-      const configPath = path.join(targetPath, 'config', 'server.config.json'); // Adjust this path based on your project
-      if (fs.existsSync(configPath)) {
-        let config = fs.readFileSync(configPath, 'utf-8');
-        config = config.replace(/port:\s*\d+/i, `port: ${port}`); // Adjust based on your file format
-        fs.writeFileSync(configPath, config, 'utf-8');
-        console.log(`Configuration updated with port ${port}.`);
-      }else{
-        fs.writeFileSync(path.join(targetPath, 'config', 'server.config.json'), JSON.stringify({
-          "port": port,
-          "session": {
-            "secret": "secrctekeyf5d665dd56ff59fbd24699e502a528f77eb786e8",
-            "saveUninitialized": false,
-            "cookie": { "maxAge": 86400000 },
-            "resave": false
-          }}, null, 2
-        ), 'utf-8');
+      fs.writeFileSync(path.join(targetPath, 'config', 'server.config.json'), JSON.stringify({
+        "port": port,
+        "session": {
+          "secret": "secrctekeyf5d665dd56ff59fbd24699e502a528f77eb786e8",
+          "saveUninitialized": false,
+          "cookie": { "maxAge": 86400000 },
+          "resave": false
+        }
+      }, null, 2), 'utf-8');
 
-        console.log(`Configuration updated with port ${port}.`);
-      }
+      console.log(`Configuration updated with port ${port}.`);
 
       // Step 5: Install project dependencies
       console.log('Installing dependencies...');
