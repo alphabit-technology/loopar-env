@@ -12,7 +12,7 @@ const program = new Command();
 program
   .argument('<folderName>', 'Name of the folder to create')
   .option('-p, --port <number>', 'Preconfigured port number', '3000') // Default port
-  .action(async (folderName, repoUrl, options) => {
+  .action(async (folderName, options) => {
     const repoUrl = 'https://github.com/alphabit-technology/loopar-framework.git';
     try {
       // Step 1: Create the target folder
